@@ -30,7 +30,7 @@ import eu.webeid.security.certificate.CertificateValidator;
 import eu.webeid.security.exceptions.AuthTokenException;
 import eu.webeid.security.exceptions.AuthTokenParseException;
 import eu.webeid.security.exceptions.JceException;
-import eu.webeid.security.validator.certvalidators.SubjectCertificateNotRevokedValidator;
+import eu.webeid.security.validator.certvalidators.DefaultOcspRevocationChecker;
 import eu.webeid.security.validator.certvalidators.SubjectCertificatePolicyValidator;
 import eu.webeid.security.validator.certvalidators.SubjectCertificatePurposeValidator;
 import eu.webeid.security.validator.certvalidators.SubjectCertificateTrustedValidator;
@@ -182,7 +182,7 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
         return SubjectCertificateValidatorBatch.createFrom(
             certTrustedValidator::validateCertificateTrusted
         ).addOptional(configuration.isUserCertificateRevocationCheckWithOcspEnabled(),
-            new SubjectCertificateNotRevokedValidator(certTrustedValidator,
+            new DefaultOcspRevocationChecker(certTrustedValidator,
                 ocspClient, ocspServiceProvider,
                 configuration.getAllowedOcspResponseTimeSkew(),
                 configuration.getMaxOcspResponseThisUpdateAge()

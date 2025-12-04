@@ -57,9 +57,9 @@ import java.time.Duration;
 import java.util.Date;
 import java.util.Objects;
 
-public final class SubjectCertificateNotRevokedValidator {
+public final class DefaultOcspRevocationChecker {
 
-    private static final Logger LOG = LoggerFactory.getLogger(SubjectCertificateNotRevokedValidator.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DefaultOcspRevocationChecker.class);
 
     private final SubjectCertificateTrustedValidator trustValidator;
     private final OcspClient ocspClient;
@@ -71,11 +71,11 @@ public final class SubjectCertificateNotRevokedValidator {
         Security.addProvider(new BouncyCastleProvider());
     }
 
-    public SubjectCertificateNotRevokedValidator(SubjectCertificateTrustedValidator trustValidator,
-                                                 OcspClient ocspClient,
-                                                 OcspServiceProvider ocspServiceProvider,
-                                                 Duration allowedOcspResponseTimeSkew,
-                                                 Duration maxOcspResponseThisUpdateAge) {
+    public DefaultOcspRevocationChecker(SubjectCertificateTrustedValidator trustValidator,
+                                        OcspClient ocspClient,
+                                        OcspServiceProvider ocspServiceProvider,
+                                        Duration allowedOcspResponseTimeSkew,
+                                        Duration maxOcspResponseThisUpdateAge) {
         this.trustValidator = trustValidator;
         this.ocspClient = ocspClient;
         this.ocspServiceProvider = ocspServiceProvider;
