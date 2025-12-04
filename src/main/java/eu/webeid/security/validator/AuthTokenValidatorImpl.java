@@ -156,7 +156,7 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
         final X509Certificate subjectCertificate = CertificateLoader.decodeCertificateFromBase64(token.getUnverifiedCertificate());
 
         simpleSubjectCertificateValidators.executeFor(subjectCertificate);
-        getCertTrustValidators().executeFor(subjectCertificate);
+        final SubjectCertificateTrustedValidator certTrustedValidator = validateCertificateTrust(subjectCertificate);
 
         // It is guaranteed that if the signature verification succeeds, then the origin and challenge
         // have been implicitly and correctly verified without the need to implement any additional checks.
@@ -165,29 +165,33 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
             subjectCertificate.getPublicKey(),
             currentChallengeNonce);
 
+        validateCertificateRevocationStatus(certTrustedValidator, subjectCertificate);
         return subjectCertificate;
     }
 
     /**
-     * Creates the certificate trust validators batch.
-     * As SubjectCertificateTrustedValidator has mutable state that SubjectCertificateNotRevokedValidator depends on,
+     * As SubjectCertificateTrustedValidator has mutable state that DefaultOcspRevocationChecker depends on,
      * they cannot be reused/cached in an instance variable in a multi-threaded environment. Hence, they are
      * re-created for each validation run for thread safety.
-     *
-     * @return certificate trust validator batch
      */
-    private SubjectCertificateValidatorBatch getCertTrustValidators() {
-        final SubjectCertificateTrustedValidator certTrustedValidator =
+    private SubjectCertificateTrustedValidator validateCertificateTrust(X509Certificate subjectCertificate) throws AuthTokenException {
+        SubjectCertificateTrustedValidator certTrustedValidator =
             new SubjectCertificateTrustedValidator(trustedCACertificateAnchors, trustedCACertificateCertStore);
-        return SubjectCertificateValidatorBatch.createFrom(
-            certTrustedValidator::validateCertificateTrusted
-        ).addOptional(configuration.isUserCertificateRevocationCheckWithOcspEnabled(),
-            new DefaultOcspRevocationChecker(certTrustedValidator,
-                ocspClient, ocspServiceProvider,
+        certTrustedValidator.validateCertificateTrusted(subjectCertificate);
+        return certTrustedValidator;
+    }
+
+    private void validateCertificateRevocationStatus(SubjectCertificateTrustedValidator certTrustedValidator,
+                                                     X509Certificate subjectCertificate) throws AuthTokenException {
+        if (configuration.isUserCertificateRevocationCheckWithOcspEnabled()) {
+            X509Certificate issuerCertificate = Objects.requireNonNull(certTrustedValidator.getSubjectCertificateIssuerCertificate());
+
+            new DefaultOcspRevocationChecker(ocspClient,
+                ocspServiceProvider,
                 configuration.getAllowedOcspResponseTimeSkew(),
-                configuration.getMaxOcspResponseThisUpdateAge()
-            )::validateCertificateNotRevoked
-        );
+                configuration.getMaxOcspResponseThisUpdateAge())
+                .validate(subjectCertificate, issuerCertificate);
+        }
     }
 
 }

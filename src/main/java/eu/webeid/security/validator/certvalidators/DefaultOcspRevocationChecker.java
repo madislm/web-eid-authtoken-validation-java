@@ -61,7 +61,6 @@ public final class DefaultOcspRevocationChecker {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultOcspRevocationChecker.class);
 
-    private final SubjectCertificateTrustedValidator trustValidator;
     private final OcspClient ocspClient;
     private final OcspServiceProvider ocspServiceProvider;
     private final Duration allowedOcspResponseTimeSkew;
@@ -71,12 +70,10 @@ public final class DefaultOcspRevocationChecker {
         Security.addProvider(new BouncyCastleProvider());
     }
 
-    public DefaultOcspRevocationChecker(SubjectCertificateTrustedValidator trustValidator,
-                                        OcspClient ocspClient,
+    public DefaultOcspRevocationChecker(OcspClient ocspClient,
                                         OcspServiceProvider ocspServiceProvider,
                                         Duration allowedOcspResponseTimeSkew,
                                         Duration maxOcspResponseThisUpdateAge) {
-        this.trustValidator = trustValidator;
         this.ocspClient = ocspClient;
         this.ocspServiceProvider = ocspServiceProvider;
         this.allowedOcspResponseTimeSkew = allowedOcspResponseTimeSkew;
@@ -89,12 +86,12 @@ public final class DefaultOcspRevocationChecker {
      * @param subjectCertificate user certificate to be validated
      * @throws AuthTokenException when user certificate is revoked or revocation check fails.
      */
-    public void validateCertificateNotRevoked(X509Certificate subjectCertificate) throws AuthTokenException {
+    public void validate(X509Certificate subjectCertificate,
+                         X509Certificate issuerCertificate) throws AuthTokenException {
         try {
             OcspService ocspService = ocspServiceProvider.getService(subjectCertificate);
 
-            final CertificateID certificateId = getCertificateId(subjectCertificate,
-                Objects.requireNonNull(trustValidator.getSubjectCertificateIssuerCertificate()));
+            final CertificateID certificateId = getCertificateId(subjectCertificate, issuerCertificate);
 
             final OCSPReq request = new OcspRequestBuilder()
                 .withCertificateId(certificateId)

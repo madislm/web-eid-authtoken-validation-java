@@ -40,13 +40,11 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.net.ConnectException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.List;
@@ -68,21 +66,20 @@ import static org.mockito.Mockito.when;
 class DefaultOcspRevocationCheckerTest {
 
     private final OcspClient ocspClient = OcspClientImpl.build(Duration.ofSeconds(5));
-    private SubjectCertificateTrustedValidator trustedValidator;
     private X509Certificate estEid2018Cert;
+    private X509Certificate issuerCert;
 
     @BeforeEach
     void setUp() throws Exception {
-        trustedValidator = new SubjectCertificateTrustedValidator(null, null);
-        setSubjectCertificateIssuerCertificate(trustedValidator);
         estEid2018Cert = getJaakKristjanEsteid2018Cert();
+        issuerCert = getTestEsteid2018CA();
     }
 
     @Test
     void whenValidAiaOcspResponderConfiguration_thenSucceeds() throws Exception {
         final DefaultOcspRevocationChecker validator = getSubjectCertificateNotRevokedValidator(ocspClient, getAiaOcspServiceProvider());
         assertThatCode(() ->
-            validator.validateCertificateNotRevoked(estEid2018Cert))
+            validator.validate(estEid2018Cert, issuerCert))
             .doesNotThrowAnyException();
     }
 
@@ -92,7 +89,7 @@ class DefaultOcspRevocationCheckerTest {
         final OcspServiceProvider ocspServiceProvider = getDesignatedOcspServiceProvider();
         final DefaultOcspRevocationChecker validator = getSubjectCertificateNotRevokedValidator(ocspServiceProvider);
         assertThatCode(() ->
-            validator.validateCertificateNotRevoked(estEid2018Cert))
+            validator.validate(estEid2018Cert, issuerCert))
             .doesNotThrowAnyException();
     }
 
@@ -102,7 +99,7 @@ class DefaultOcspRevocationCheckerTest {
         final OcspServiceProvider ocspServiceProvider = getDesignatedOcspServiceProvider(false);
         final DefaultOcspRevocationChecker validator = getSubjectCertificateNotRevokedValidator(ocspServiceProvider);
         assertThatCode(() ->
-            validator.validateCertificateNotRevoked(estEid2018Cert))
+            validator.validate(estEid2018Cert, issuerCert))
             .doesNotThrowAnyException();
     }
 
@@ -111,7 +108,7 @@ class DefaultOcspRevocationCheckerTest {
         final OcspServiceProvider ocspServiceProvider = getDesignatedOcspServiceProvider("http://invalid.invalid");
         final DefaultOcspRevocationChecker validator = getSubjectCertificateNotRevokedValidator(ocspServiceProvider);
         assertThatCode(() ->
-            validator.validateCertificateNotRevoked(estEid2018Cert))
+            validator.validate(estEid2018Cert, issuerCert))
             .isInstanceOf(UserCertificateOCSPCheckFailedException.class)
             .cause()
             .isInstanceOf(ConnectException.class);
@@ -122,7 +119,7 @@ class DefaultOcspRevocationCheckerTest {
         final OcspServiceProvider ocspServiceProvider = getDesignatedOcspServiceProvider("http://demo.sk.ee/ocsps");
         final DefaultOcspRevocationChecker validator = getSubjectCertificateNotRevokedValidator(ocspServiceProvider);
         assertThatCode(() ->
-            validator.validateCertificateNotRevoked(estEid2018Cert))
+            validator.validate(estEid2018Cert, issuerCert))
             .isInstanceOf(UserCertificateOCSPCheckFailedException.class)
             .cause()
             .isInstanceOf(IOException.class)
@@ -135,7 +132,7 @@ class DefaultOcspRevocationCheckerTest {
             getMockedResponse("invalid".getBytes())
         );
         assertThatCode(() ->
-            validator.validateCertificateNotRevoked(estEid2018Cert))
+            validator.validate(estEid2018Cert, issuerCert))
             .isInstanceOf(UserCertificateOCSPCheckFailedException.class)
             .cause()
             .isInstanceOf(IOException.class)
@@ -149,7 +146,7 @@ class DefaultOcspRevocationCheckerTest {
         );
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validator.validateCertificateNotRevoked(estEid2018Cert))
+                validator.validate(estEid2018Cert, issuerCert))
             .withMessage("User certificate revocation check has failed: Response status: internal error");
     }
 
@@ -160,7 +157,7 @@ class DefaultOcspRevocationCheckerTest {
         );
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validator.validateCertificateNotRevoked(estEid2018Cert))
+                validator.validate(estEid2018Cert, issuerCert))
             .withMessage("User certificate revocation check has failed: OCSP responded with certificate ID that differs from the requested ID");
     }
 
@@ -171,7 +168,7 @@ class DefaultOcspRevocationCheckerTest {
         );
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validator.validateCertificateNotRevoked(estEid2018Cert))
+                validator.validate(estEid2018Cert, issuerCert))
             .withMessage("User certificate revocation check has failed: OCSP response signature is invalid");
     }
 
@@ -181,7 +178,7 @@ class DefaultOcspRevocationCheckerTest {
             getMockedResponse(buildOcspResponseBodyWithInvalidResponderCert())
         );
         assertThatCode(() ->
-            validator.validateCertificateNotRevoked(estEid2018Cert))
+            validator.validate(estEid2018Cert, issuerCert))
             .isInstanceOf(UserCertificateOCSPCheckFailedException.class)
             .cause()
             .isInstanceOf(OCSPException.class)
@@ -194,7 +191,7 @@ class DefaultOcspRevocationCheckerTest {
             getMockedResponse(buildOcspResponseBodyWithInvalidTag())
         );
         assertThatCode(() ->
-            validator.validateCertificateNotRevoked(estEid2018Cert))
+            validator.validate(estEid2018Cert, issuerCert))
             .isInstanceOf(UserCertificateOCSPCheckFailedException.class)
             .cause()
             .isInstanceOf(OCSPException.class)
@@ -208,7 +205,7 @@ class DefaultOcspRevocationCheckerTest {
         );
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validator.validateCertificateNotRevoked(estEid2018Cert))
+                validator.validate(estEid2018Cert, issuerCert))
             .withMessage("User certificate revocation check has failed: OCSP response must contain one response, received 2 responses instead");
     }
 
@@ -219,7 +216,7 @@ class DefaultOcspRevocationCheckerTest {
         );
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validator.validateCertificateNotRevoked(estEid2018Cert))
+                validator.validate(estEid2018Cert, issuerCert))
             .withMessage("User certificate revocation check has failed: OCSP response must contain one responder certificate, received 2 certificates instead");
     }
 
@@ -232,7 +229,7 @@ class DefaultOcspRevocationCheckerTest {
             mockDate("2021-09-18", mockedClock);
             assertThatExceptionOfType(UserCertificateRevokedException.class)
                 .isThrownBy(() ->
-                    validator.validateCertificateNotRevoked(estEid2018Cert))
+                    validator.validate(estEid2018Cert, issuerCert))
                 .withMessage("User certificate has been revoked: Revocation reason: 0");
         }
     }
@@ -246,7 +243,7 @@ class DefaultOcspRevocationCheckerTest {
             mockDate("2021-09-18T00:16:25", mockedClock);
             assertThatExceptionOfType(UserCertificateRevokedException.class)
                 .isThrownBy(() ->
-                    validator.validateCertificateNotRevoked(estEid2018Cert))
+                    validator.validate(estEid2018Cert, issuerCert))
                 .withMessage("User certificate has been revoked: Unknown status");
         }
     }
@@ -260,7 +257,7 @@ class DefaultOcspRevocationCheckerTest {
             mockDate("2021-09-18T00:16:25", mockedClock);
             assertThatExceptionOfType(CertificateNotTrustedException.class)
                 .isThrownBy(() ->
-                    validator.validateCertificateNotRevoked(estEid2018Cert))
+                    validator.validate(estEid2018Cert, issuerCert))
                 .withMessage("Certificate EMAILADDRESS=pki@sk.ee, CN=TEST of SK OCSP RESPONDER 2020, OU=OCSP, O=AS Sertifitseerimiskeskus, C=EE is not trusted");
         }
     }
@@ -272,7 +269,7 @@ class DefaultOcspRevocationCheckerTest {
         );
         assertThatExceptionOfType(CertificateExpiredException.class)
             .isThrownBy(() ->
-                validator.validateCertificateNotRevoked(estEid2018Cert))
+                validator.validate(estEid2018Cert, issuerCert))
             .withMessage("AIA OCSP responder certificate has expired");
     }
 
@@ -285,7 +282,7 @@ class DefaultOcspRevocationCheckerTest {
             mockDate("2021-09-17T18:25:24", mockedClock);
             assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
                 .isThrownBy(() ->
-                    validator.validateCertificateNotRevoked(estEid2018Cert))
+                    validator.validate(estEid2018Cert, issuerCert))
                 .withMessage("User certificate revocation check has failed: OCSP request and response nonces differ, possible replay attack");
         }
     }
@@ -347,13 +344,7 @@ class DefaultOcspRevocationCheckerTest {
     }
 
     private DefaultOcspRevocationChecker  getSubjectCertificateNotRevokedValidator(OcspClient client, OcspServiceProvider ocspServiceProvider) {
-        return new DefaultOcspRevocationChecker(trustedValidator, client, ocspServiceProvider, CONFIGURATION.getAllowedOcspResponseTimeSkew(), CONFIGURATION.getMaxOcspResponseThisUpdateAge());
-    }
-
-    private static void setSubjectCertificateIssuerCertificate(SubjectCertificateTrustedValidator trustedValidator) throws NoSuchFieldException, IllegalAccessException, CertificateException, IOException {
-        final Field field = trustedValidator.getClass().getDeclaredField("subjectCertificateIssuerCertificate");
-        field.setAccessible(true);
-        field.set(trustedValidator, getTestEsteid2018CA());
+        return new DefaultOcspRevocationChecker(client, ocspServiceProvider, CONFIGURATION.getAllowedOcspResponseTimeSkew(), CONFIGURATION.getMaxOcspResponseThisUpdateAge());
     }
 
     private HttpResponse<byte[]> getMockedResponse(byte[] bodyContent) throws URISyntaxException {
