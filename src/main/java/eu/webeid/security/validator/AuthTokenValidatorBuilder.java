@@ -22,6 +22,7 @@
 
 package eu.webeid.security.validator;
 
+import eu.webeid.security.OcspCertificateRevocationChecker;
 import eu.webeid.security.exceptions.JceException;
 import eu.webeid.security.validator.ocsp.OcspClient;
 import eu.webeid.security.validator.ocsp.OcspClientImpl;
@@ -45,6 +46,7 @@ public class AuthTokenValidatorBuilder {
 
     private final AuthTokenValidationConfiguration configuration = new AuthTokenValidationConfiguration();
     private OcspClient ocspClient;
+    private OcspCertificateRevocationChecker revocationChecker;
 
     /**
      * Sets the expected site origin, i.e. the domain that the application is running on.
@@ -200,6 +202,11 @@ public class AuthTokenValidatorBuilder {
         return this;
     }
 
+    public AuthTokenValidatorBuilder withOcspCertificateRevocationChecker(OcspCertificateRevocationChecker revocationChecker) {
+        this.revocationChecker = revocationChecker;
+        return this;
+    }
+
     /**
      * Validates the configuration and builds the {@link AuthTokenValidator} object with it.
      * The returned {@link AuthTokenValidator} object is immutable/thread-safe.
@@ -214,7 +221,7 @@ public class AuthTokenValidatorBuilder {
         if (configuration.isUserCertificateRevocationCheckWithOcspEnabled() && ocspClient == null) {
             ocspClient = OcspClientImpl.build(configuration.getOcspRequestTimeout());
         }
-        return new AuthTokenValidatorImpl(configuration, ocspClient);
+        return new AuthTokenValidatorImpl(configuration, ocspClient, revocationChecker);
     }
 
 }

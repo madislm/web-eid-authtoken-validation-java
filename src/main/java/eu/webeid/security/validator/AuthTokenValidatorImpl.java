@@ -24,6 +24,7 @@ package eu.webeid.security.validator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import eu.webeid.security.OcspCertificateRevocationChecker;
 import eu.webeid.security.authtoken.WebEidAuthToken;
 import eu.webeid.security.certificate.CertificateLoader;
 import eu.webeid.security.certificate.CertificateValidator;
@@ -68,12 +69,14 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
     private OcspClient ocspClient;
     private OcspServiceProvider ocspServiceProvider;
     private final AuthTokenSignatureValidator authTokenSignatureValidator;
+    private OcspCertificateRevocationChecker revocationChecker;
 
     /**
      * @param configuration configuration parameters for the token validator
      * @param ocspClient    client for communicating with the OCSP service
      */
-    AuthTokenValidatorImpl(AuthTokenValidationConfiguration configuration, OcspClient ocspClient) throws JceException {
+    AuthTokenValidatorImpl(AuthTokenValidationConfiguration configuration, OcspClient ocspClient,
+                           OcspCertificateRevocationChecker revocationChecker) throws JceException {
         // Copy the configuration object to make AuthTokenValidatorImpl immutable and thread-safe.
         this.configuration = configuration.copy();
 
@@ -94,6 +97,14 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
                 new AiaOcspServiceConfiguration(configuration.getNonceDisabledOcspUrls(),
                     trustedCACertificateAnchors,
                     trustedCACertificateCertStore));
+
+            if (revocationChecker == null) {
+                revocationChecker = new DefaultOcspRevocationChecker(ocspClient,
+                    ocspServiceProvider,
+                    configuration.getAllowedOcspResponseTimeSkew(),
+                    configuration.getMaxOcspResponseThisUpdateAge());
+            }
+            this.revocationChecker = revocationChecker;
         }
 
         authTokenSignatureValidator = new AuthTokenSignatureValidator(configuration.getSiteOrigin());
@@ -170,7 +181,7 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
     }
 
     /**
-     * As SubjectCertificateTrustedValidator has mutable state that DefaultOcspRevocationChecker depends on,
+     * As SubjectCertificateTrustedValidator has mutable state that OcspCertificateRevocationChecker depends on,
      * they cannot be reused/cached in an instance variable in a multi-threaded environment. Hence, they are
      * re-created for each validation run for thread safety.
      */
@@ -186,11 +197,7 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
         if (configuration.isUserCertificateRevocationCheckWithOcspEnabled()) {
             X509Certificate issuerCertificate = Objects.requireNonNull(certTrustedValidator.getSubjectCertificateIssuerCertificate());
 
-            new DefaultOcspRevocationChecker(ocspClient,
-                ocspServiceProvider,
-                configuration.getAllowedOcspResponseTimeSkew(),
-                configuration.getMaxOcspResponseThisUpdateAge())
-                .validate(subjectCertificate, issuerCertificate);
+            revocationChecker.validate(subjectCertificate, issuerCertificate);
         }
     }
 
