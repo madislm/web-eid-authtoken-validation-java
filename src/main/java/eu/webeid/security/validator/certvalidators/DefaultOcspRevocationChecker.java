@@ -22,6 +22,7 @@
 
 package eu.webeid.security.validator.certvalidators;
 
+import eu.webeid.security.OcspCertificateRevocationChecker;
 import eu.webeid.security.exceptions.AuthTokenException;
 import eu.webeid.security.exceptions.UserCertificateOCSPCheckFailedException;
 import eu.webeid.security.util.DateAndTime;
@@ -57,7 +58,7 @@ import java.time.Duration;
 import java.util.Date;
 import java.util.Objects;
 
-public final class DefaultOcspRevocationChecker {
+public final class DefaultOcspRevocationChecker implements OcspCertificateRevocationChecker {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultOcspRevocationChecker.class);
 
@@ -86,6 +87,7 @@ public final class DefaultOcspRevocationChecker {
      * @param subjectCertificate user certificate to be validated
      * @throws AuthTokenException when user certificate is revoked or revocation check fails.
      */
+    @Override
     public void validate(X509Certificate subjectCertificate,
                          X509Certificate issuerCertificate) throws AuthTokenException {
         try {
