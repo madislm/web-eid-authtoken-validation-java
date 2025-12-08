@@ -22,6 +22,7 @@
 
 package eu.webeid.security.validator;
 
+import eu.webeid.security.ValidationInfo;
 import eu.webeid.security.authtoken.WebEidAuthToken;
 import eu.webeid.security.certificate.CertificateData;
 import eu.webeid.security.exceptions.AuthTokenException;
@@ -57,6 +58,6 @@ public interface AuthTokenValidator {
      * @return validated subject certificate
      * @throws AuthTokenException when validation fails
      */
-    X509Certificate validate(WebEidAuthToken authToken, String currentChallengeNonce) throws AuthTokenException;
+    ValidationInfo validate(WebEidAuthToken authToken, String currentChallengeNonce) throws AuthTokenException;
 
 }

@@ -22,13 +22,23 @@
 
 package eu.webeid.security;
 
-import eu.webeid.security.exceptions.AuthTokenException;
-
 import java.security.cert.X509Certificate;
 
-public interface OcspCertificateRevocationChecker {
+public class ValidationInfo {
 
-    Iterable<RevocationInfo> validate(X509Certificate subjectCertificate,
-                  X509Certificate issuerCertificate) throws AuthTokenException;
+    private final X509Certificate subjectCertificate;
+    private final Iterable<RevocationInfo> revocationInfos;
 
+    public ValidationInfo(X509Certificate subjectCertificate, Iterable<RevocationInfo> revocationInfos) {
+        this.subjectCertificate = subjectCertificate;
+        this.revocationInfos = revocationInfos;
+    }
+
+    public X509Certificate getSubjectCertificate() {
+        return subjectCertificate;
+    }
+
+    public Iterable<RevocationInfo> getRevocationInfos() {
+        return revocationInfos;
+    }
 }

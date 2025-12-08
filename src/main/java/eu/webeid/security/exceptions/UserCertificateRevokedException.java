@@ -22,15 +22,22 @@
 
 package eu.webeid.security.exceptions;
 
+import eu.webeid.security.ValidationInfo;
+
 /**
  * Thrown when the user certificate has been revoked.
  */
 public class UserCertificateRevokedException extends AuthTokenException {
-    public UserCertificateRevokedException() {
+
+    private final ValidationInfo validationInfo;
+
+    public UserCertificateRevokedException(ValidationInfo validationInfo) {
         super("User certificate has been revoked");
+        this.validationInfo = validationInfo;
     }
 
-    public UserCertificateRevokedException(String msg) {
+    public UserCertificateRevokedException(String msg, ValidationInfo validationInfo) {
         super("User certificate has been revoked: " + msg);
+        this.validationInfo = validationInfo;
     }
 }

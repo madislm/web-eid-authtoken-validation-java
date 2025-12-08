@@ -22,6 +22,7 @@
 
 package eu.webeid.security.validator.ocsp;
 
+import eu.webeid.security.ValidationInfo;
 import eu.webeid.security.exceptions.OCSPCertificateException;
 import eu.webeid.security.exceptions.UserCertificateOCSPCheckFailedException;
 import eu.webeid.security.exceptions.UserCertificateRevokedException;
@@ -66,16 +67,16 @@ public final class OcspResponseValidator {
         }
     }
 
-    public static void validateResponseSignature(BasicOCSPResp basicResponse, X509CertificateHolder responderCert) throws CertificateException, OperatorCreationException, OCSPException, UserCertificateOCSPCheckFailedException {
+    public static void validateResponseSignature(BasicOCSPResp basicResponse, X509CertificateHolder responderCert, ValidationInfo validationInfo) throws CertificateException, OperatorCreationException, OCSPException, UserCertificateOCSPCheckFailedException {
         final ContentVerifierProvider verifierProvider = new JcaContentVerifierProviderBuilder()
             .setProvider("BC")
             .build(responderCert);
         if (!basicResponse.isSignatureValid(verifierProvider)) {
-            throw new UserCertificateOCSPCheckFailedException("OCSP response signature is invalid");
+            throw new UserCertificateOCSPCheckFailedException("OCSP response signature is invalid", validationInfo);
         }
     }
 
-    public static void validateCertificateStatusUpdateTime(SingleResp certStatusResponse, Duration allowedTimeSkew, Duration maxThisupdateAge) throws UserCertificateOCSPCheckFailedException {
+    public static void validateCertificateStatusUpdateTime(SingleResp certStatusResponse, Duration allowedTimeSkew, Duration maxThisupdateAge, ValidationInfo validationInfo) throws UserCertificateOCSPCheckFailedException {
         // From RFC 2560, https://www.ietf.org/rfc/rfc2560.txt:
         // 4.2.2.  Notes on OCSP Responses
         // 4.2.2.1.  Time
@@ -94,12 +95,12 @@ public final class OcspResponseValidator {
         if (thisUpdate.isAfter(latestAcceptableTimeSkew)) {
             throw new UserCertificateOCSPCheckFailedException(ERROR_PREFIX +
                 "thisUpdate '" + thisUpdate + "' is too far in the future, " +
-                "latest allowed: '" + latestAcceptableTimeSkew + "'");
+                "latest allowed: '" + latestAcceptableTimeSkew + "'", validationInfo);
         }
         if (thisUpdate.isBefore(minimumValidThisUpdateTime)) {
             throw new UserCertificateOCSPCheckFailedException(ERROR_PREFIX +
                 "thisUpdate '" + thisUpdate + "' is too old, " +
-                "minimum time allowed: '" + minimumValidThisUpdateTime + "'");
+                "minimum time allowed: '" + minimumValidThisUpdateTime + "'", validationInfo);
         }
 
         if (certStatusResponse.getNextUpdate() == null) {
@@ -108,15 +109,15 @@ public final class OcspResponseValidator {
         final Instant nextUpdate = certStatusResponse.getNextUpdate().toInstant();
         if (nextUpdate.isBefore(earliestAcceptableTimeSkew)) {
             throw new UserCertificateOCSPCheckFailedException(ERROR_PREFIX +
-                "nextUpdate '" + nextUpdate + "' is in the past");
+                "nextUpdate '" + nextUpdate + "' is in the past", validationInfo);
         }
         if (nextUpdate.isBefore(thisUpdate)) {
             throw new UserCertificateOCSPCheckFailedException(ERROR_PREFIX +
-                "nextUpdate '" + nextUpdate + "' is before thisUpdate '" + thisUpdate + "'");
+                "nextUpdate '" + nextUpdate + "' is before thisUpdate '" + thisUpdate + "'", validationInfo);
         }
     }
 
-    public static void validateSubjectCertificateStatus(SingleResp certStatusResponse) throws UserCertificateRevokedException {
+    public static void validateSubjectCertificateStatus(SingleResp certStatusResponse, ValidationInfo validationInfo) throws UserCertificateRevokedException {
         final CertificateStatus status = certStatusResponse.getCertStatus();
         if (status == null) {
             return;
@@ -124,12 +125,12 @@ public final class OcspResponseValidator {
         if (status instanceof RevokedStatus) {
             RevokedStatus revokedStatus = (RevokedStatus) status;
             throw (revokedStatus.hasRevocationReason() ?
-                new UserCertificateRevokedException("Revocation reason: " + revokedStatus.getRevocationReason()) :
-                new UserCertificateRevokedException());
+                new UserCertificateRevokedException("Revocation reason: " + revokedStatus.getRevocationReason(), validationInfo) :
+                new UserCertificateRevokedException(validationInfo));
         } else if (status instanceof UnknownStatus) {
-            throw new UserCertificateRevokedException("Unknown status");
+            throw new UserCertificateRevokedException("Unknown status", validationInfo);
         } else {
-            throw new UserCertificateRevokedException("Status is neither good, revoked nor unknown");
+            throw new UserCertificateRevokedException("Status is neither good, revoked nor unknown", validationInfo);
         }
     }
 

@@ -22,6 +22,7 @@
 
 package eu.webeid.security.validator;
 
+import eu.webeid.security.ValidationInfo;
 import eu.webeid.security.authtoken.WebEidAuthToken;
 import eu.webeid.security.certificate.CertificateData;
 import eu.webeid.security.exceptions.AuthTokenSignatureValidationException;
@@ -48,7 +49,8 @@ class AuthTokenSignatureTest extends AbstractTestWithValidator {
 
     @Test
     void whenValidTokenAndNonce_thenValidationSucceeds() throws Exception {
-        final X509Certificate result = validator.validate(validAuthToken, VALID_CHALLENGE_NONCE);
+        final ValidationInfo validationInfo = validator.validate(validAuthToken, VALID_CHALLENGE_NONCE);
+        final X509Certificate result = validationInfo.getSubjectCertificate();
 
         assertThat(CertificateData.getSubjectCN(result).orElseThrow())
             .isEqualTo("JÕEORG\\,JAAK-KRISTJAN\\,38001085718");

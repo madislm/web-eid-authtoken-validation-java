@@ -23,6 +23,8 @@
 package eu.webeid.security.validator.certvalidators;
 
 import eu.webeid.security.OcspCertificateRevocationChecker;
+import eu.webeid.security.RevocationInfo;
+import eu.webeid.security.ValidationInfo;
 import eu.webeid.security.exceptions.AuthTokenException;
 import eu.webeid.security.exceptions.UserCertificateOCSPCheckFailedException;
 import eu.webeid.security.util.DateAndTime;
@@ -50,11 +52,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.URI;
 import java.security.Security;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Objects;
 
@@ -88,11 +92,12 @@ public final class DefaultOcspRevocationChecker implements OcspCertificateRevoca
      * @throws AuthTokenException when user certificate is revoked or revocation check fails.
      */
     @Override
-    public void validate(X509Certificate subjectCertificate,
-                         X509Certificate issuerCertificate) throws AuthTokenException {
+    public Iterable<RevocationInfo> validate(X509Certificate subjectCertificate,
+                                   X509Certificate issuerCertificate) throws AuthTokenException {
+        OcspService ocspService = null;
+        OCSPResp response = null;
         try {
-            OcspService ocspService = ocspServiceProvider.getService(subjectCertificate);
-
+            ocspService = ocspServiceProvider.getService(subjectCertificate);
             final CertificateID certificateId = getCertificateId(subjectCertificate, issuerCertificate);
 
             final OCSPReq request = new OcspRequestBuilder()
@@ -105,25 +110,39 @@ public final class DefaultOcspRevocationChecker implements OcspCertificateRevoca
             }
 
             LOG.debug("Sending OCSP request");
-            final OCSPResp response = Objects.requireNonNull(ocspClient.request(ocspService.getAccessLocation(), request));
+            response = Objects.requireNonNull(ocspClient.request(ocspService.getAccessLocation(), request));
             if (response.getStatus() != OCSPResponseStatus.SUCCESSFUL) {
                 throw new UserCertificateOCSPCheckFailedException("Response status: " + ocspStatusToString(response.getStatus()));
             }
 
-            final BasicOCSPResp basicResponse = (BasicOCSPResp) response.getResponseObject();
-            if (basicResponse == null) {
-                throw new UserCertificateOCSPCheckFailedException("Missing Basic OCSP Response");
-            }
-            verifyOcspResponse(basicResponse, ocspService, certificateId);
-            if (ocspService.doesSupportNonce()) {
-                checkNonce(request, basicResponse);
-            }
+            final Extension requestNonce = request.getExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
+            RevocationInfo revocationInfo = verifyOcspResponse(response, ocspService, requestNonce, subjectCertificate, certificateId);
+            LOG.debug("OCSP check result is GOOD");
+
+            return Collections.singleton(revocationInfo);
         } catch (OCSPException | CertificateException | OperatorCreationException | IOException e) {
-            throw new UserCertificateOCSPCheckFailedException(e);
+            URI ocspResponderUri = (ocspService != null)
+                ? ocspService.getAccessLocation()
+                : null;
+            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException(e);
+            RevocationInfo revocationInfo = new RevocationInfo(ocspResponderUri, exception);
+            exception.setValidationInfo(new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfo)));
+            throw exception;
         }
     }
 
-    private void verifyOcspResponse(BasicOCSPResp basicResponse, OcspService ocspService, CertificateID requestCertificateId) throws AuthTokenException, OCSPException, CertificateException, OperatorCreationException {
+    private RevocationInfo verifyOcspResponse(OCSPResp ocspResp, OcspService ocspService, Extension requestNonce,
+                                              X509Certificate subjectCertificate, CertificateID requestCertificateId
+                                              ) throws AuthTokenException, OCSPException, CertificateException, OperatorCreationException {
+        final RevocationInfo revocationInfo = new RevocationInfo(ocspService.getAccessLocation(), null);
+        final BasicOCSPResp basicResponse = (BasicOCSPResp) ocspResp.getResponseObject();
+        if (basicResponse == null) {
+            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException("Missing Basic OCSP Response");
+            revocationInfo.setException(exception);
+            exception.setValidationInfo(new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfo)));
+            throw exception;
+        }
+
         // The verification algorithm follows RFC 2560, https://www.ietf.org/rfc/rfc2560.txt.
         //
         // 3.2.  Signed Response Acceptance Requirements
@@ -135,12 +154,19 @@ public final class DefaultOcspRevocationChecker implements OcspCertificateRevoca
 
         // As we sent the request for only a single certificate, we expect only a single response.
         if (basicResponse.getResponses().length != 1) {
-            throw new UserCertificateOCSPCheckFailedException("OCSP response must contain one response, "
+            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException("OCSP response must contain one response, "
                 + "received " + basicResponse.getResponses().length + " responses instead");
+            revocationInfo.setException(exception);
+            exception.setValidationInfo(new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfo)));
+            throw exception;
         }
         final SingleResp certStatusResponse = basicResponse.getResponses()[0];
         if (!requestCertificateId.equals(certStatusResponse.getCertID())) {
-            throw new UserCertificateOCSPCheckFailedException("OCSP responded with certificate ID that differs from the requested ID");
+            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException(
+                "OCSP responded with certificate ID that differs from the requested ID");
+            revocationInfo.setException(exception);
+            exception.setValidationInfo(new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfo)));
+            throw exception;
         }
 
         //   2. The signature on the response is valid.
@@ -149,12 +175,16 @@ public final class DefaultOcspRevocationChecker implements OcspCertificateRevoca
         // that helps us to verify it. According to RFC 2560 this field is optional, but including it
         // is standard practice.
         if (basicResponse.getCerts().length < 1) {
-            throw new UserCertificateOCSPCheckFailedException("OCSP response must contain the responder certificate, "
+            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException("OCSP response must contain the responder certificate, "
                 + "but none was provided");
+            revocationInfo.setException(exception);
+            exception.setValidationInfo(new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfo)));
+            throw exception;
         }
         // The first certificate is the responder certificate, other certificates, if given, are the certificate's chain.
         final X509CertificateHolder responderCert = basicResponse.getCerts()[0];
-        OcspResponseValidator.validateResponseSignature(basicResponse, responderCert);
+        ValidationInfo validationInfo = new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfo));
+        OcspResponseValidator.validateResponseSignature(basicResponse, responderCert, validationInfo);
 
         //   3. The identity of the signer matches the intended recipient of the
         //      request.
@@ -164,7 +194,14 @@ public final class DefaultOcspRevocationChecker implements OcspCertificateRevoca
 
         // Use the clock instance so that the date can be mocked in tests.
         final Date now = DateAndTime.DefaultClock.getInstance().now();
-        ocspService.validateResponderCertificate(responderCert, now);
+        try {
+            ocspService.validateResponderCertificate(responderCert, now);
+        } catch (AuthTokenException e) {
+            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException(e);
+            revocationInfo.setException(exception);
+            exception.setValidationInfo(new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfo)));
+            throw exception;
+        }
 
         //   5. The time at which the status being indicated is known to be
         //      correct (thisUpdate) is sufficiently recent.
@@ -173,23 +210,31 @@ public final class DefaultOcspRevocationChecker implements OcspCertificateRevoca
         //      be available about the status of the certificate (nextUpdate) is
         //      greater than the current time.
 
-        OcspResponseValidator.validateCertificateStatusUpdateTime(certStatusResponse, allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge);
+        OcspResponseValidator.validateCertificateStatusUpdateTime(certStatusResponse, allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge, validationInfo);
 
         // Now we can accept the signed response as valid and validate the certificate status.
-        OcspResponseValidator.validateSubjectCertificateStatus(certStatusResponse);
-        LOG.debug("OCSP check result is GOOD");
+        OcspResponseValidator.validateSubjectCertificateStatus(certStatusResponse, validationInfo);
+
+        if (ocspService.doesSupportNonce()) {
+            checkNonce(requestNonce, ocspResp, validationInfo);
+        }
+
+        return revocationInfo;
     }
 
-    private static void checkNonce(OCSPReq request, BasicOCSPResp response) throws UserCertificateOCSPCheckFailedException {
-        final Extension requestNonce = request.getExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
-        final Extension responseNonce = response.getExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
+    private static void checkNonce(Extension requestNonce, OCSPResp ocspResp, ValidationInfo validationInfo) throws UserCertificateOCSPCheckFailedException, OCSPException {
+        final BasicOCSPResp basicResponse = (BasicOCSPResp) ocspResp.getResponseObject();
+        if (basicResponse == null) {
+            throw new UserCertificateOCSPCheckFailedException("Missing Basic OCSP Response");
+        }
+        final Extension responseNonce = basicResponse.getExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
         if (requestNonce == null || responseNonce == null) {
             throw new UserCertificateOCSPCheckFailedException("OCSP request or response nonce extension missing, " +
-                "possible replay attack");
+                "possible replay attack", validationInfo);
         }
         if (!requestNonce.equals(responseNonce)) {
             throw new UserCertificateOCSPCheckFailedException("OCSP request and response nonces differ, " +
-                "possible replay attack");
+                "possible replay attack", validationInfo);
         }
     }
 

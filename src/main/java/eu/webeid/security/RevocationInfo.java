@@ -24,11 +24,27 @@ package eu.webeid.security;
 
 import eu.webeid.security.exceptions.AuthTokenException;
 
-import java.security.cert.X509Certificate;
+import java.net.URI;
 
-public interface OcspCertificateRevocationChecker {
+public class RevocationInfo {
 
-    Iterable<RevocationInfo> validate(X509Certificate subjectCertificate,
-                  X509Certificate issuerCertificate) throws AuthTokenException;
+    private final URI ocspResponderUri;
+    private AuthTokenException exception;
 
+    public RevocationInfo(URI ocspResponderUri, AuthTokenException exception) {
+        this.ocspResponderUri = ocspResponderUri;
+        this.exception = exception;
+    }
+
+    public void setException(AuthTokenException exception) {
+        this.exception = exception;
+    }
+
+    public URI getOcspResponderUri() {
+        return ocspResponderUri;
+    }
+
+    public AuthTokenException getException() {
+        return exception;
+    }
 }

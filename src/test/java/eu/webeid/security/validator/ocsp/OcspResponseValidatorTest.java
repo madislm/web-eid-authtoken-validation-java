@@ -22,6 +22,7 @@
 
 package eu.webeid.security.validator.ocsp;
 
+import eu.webeid.security.ValidationInfo;
 import eu.webeid.security.exceptions.UserCertificateOCSPCheckFailedException;
 import org.bouncycastle.cert.ocsp.SingleResp;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ import static eu.webeid.security.validator.AuthTokenValidatorBuilderTest.CONFIGU
 import static eu.webeid.security.validator.ocsp.OcspResponseValidator.validateCertificateStatusUpdateTime;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,7 +53,7 @@ class OcspResponseValidatorTest {
         var nextUpdateWithinAgeLimit = Date.from(now.minus(THIS_UPDATE_AGE.minusSeconds(2)));
         when(mockResponse.getThisUpdate()).thenReturn(thisUpdateWithinAgeLimit);
         when(mockResponse.getNextUpdate()).thenReturn(nextUpdateWithinAgeLimit);
-        assertThatCode(() -> validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE))
+        assertThatCode(() -> validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, null))
             .doesNotThrowAnyException();
     }
 
@@ -63,12 +65,14 @@ class OcspResponseValidatorTest {
         var beforeThisUpdate = new Date(thisUpdateWithinAgeLimit.getTime() - 1000);
         when(mockResponse.getThisUpdate()).thenReturn(thisUpdateWithinAgeLimit);
         when(mockResponse.getNextUpdate()).thenReturn(beforeThisUpdate);
+        ValidationInfo validationInfo = mock(ValidationInfo.class);
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE))
+                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, validationInfo))
             .withMessageStartingWith("User certificate revocation check has failed: "
                 + "Certificate status update time check failed: "
-                + "nextUpdate '" + beforeThisUpdate.toInstant() + "' is before thisUpdate '" + thisUpdateWithinAgeLimit.toInstant() + "'");
+                + "nextUpdate '" + beforeThisUpdate.toInstant() + "' is before thisUpdate '" + thisUpdateWithinAgeLimit.toInstant() + "'")
+            .satisfies(e -> assertThat(e.getValidationInfo()).isNotNull());
     }
 
     @Test
@@ -77,12 +81,14 @@ class OcspResponseValidatorTest {
         var now = Instant.now();
         var halfHourBeforeNow = Date.from(now.minus(30, ChronoUnit.MINUTES));
         when(mockResponse.getThisUpdate()).thenReturn(halfHourBeforeNow);
+        ValidationInfo validationInfo = mock(ValidationInfo.class);
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE))
+                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, validationInfo))
             .withMessageStartingWith("User certificate revocation check has failed: "
                 + "Certificate status update time check failed: "
-                + "thisUpdate '" + halfHourBeforeNow.toInstant() + "' is too old, minimum time allowed: ");
+                + "thisUpdate '" + halfHourBeforeNow.toInstant() + "' is too old, minimum time allowed: ")
+            .satisfies(e -> assertThat(e.getValidationInfo()).isNotNull());
     }
 
     @Test
@@ -91,12 +97,14 @@ class OcspResponseValidatorTest {
         var now = Instant.now();
         var halfHourAfterNow = Date.from(now.plus(30, ChronoUnit.MINUTES));
         when(mockResponse.getThisUpdate()).thenReturn(halfHourAfterNow);
+        ValidationInfo validationInfo = mock(ValidationInfo.class);
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE))
+                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, validationInfo))
             .withMessageStartingWith("User certificate revocation check has failed: "
                 + "Certificate status update time check failed: "
-                + "thisUpdate '" + halfHourAfterNow.toInstant() + "' is too far in the future, latest allowed: ");
+                + "thisUpdate '" + halfHourAfterNow.toInstant() + "' is too far in the future, latest allowed: ")
+            .satisfies(e -> assertThat(e.getValidationInfo()).isNotNull());
     }
 
     @Test
@@ -107,12 +115,14 @@ class OcspResponseValidatorTest {
         var halfHourBeforeNow = Date.from(now.minus(30, ChronoUnit.MINUTES));
         when(mockResponse.getThisUpdate()).thenReturn(thisUpdateWithinAgeLimit);
         when(mockResponse.getNextUpdate()).thenReturn(halfHourBeforeNow);
+        ValidationInfo validationInfo = mock(ValidationInfo.class);
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE))
+                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, validationInfo))
             .withMessage("User certificate revocation check has failed: "
                 + "Certificate status update time check failed: "
-                + "nextUpdate '" + halfHourBeforeNow.toInstant() + "' is in the past");
+                + "nextUpdate '" + halfHourBeforeNow.toInstant() + "' is in the past")
+            .satisfies(e -> assertThat(e.getValidationInfo()).isNotNull());
     }
 
     private static Date getThisUpdateWithinAgeLimit(Instant now) {
