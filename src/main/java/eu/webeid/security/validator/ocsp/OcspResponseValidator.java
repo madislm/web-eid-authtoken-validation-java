@@ -76,7 +76,7 @@ public final class OcspResponseValidator {
         }
     }
 
-    public static void validateCertificateStatusUpdateTime(SingleResp certStatusResponse, Duration allowedTimeSkew, Duration maxThisupdateAge, ValidationInfo validationInfo) throws UserCertificateOCSPCheckFailedException {
+    public static void validateCertificateStatusUpdateTime(SingleResp certStatusResponse, Duration allowedTimeSkew, Duration maxThisUpdateAge, ValidationInfo validationInfo) throws UserCertificateOCSPCheckFailedException {
         // From RFC 2560, https://www.ietf.org/rfc/rfc2560.txt:
         // 4.2.2.  Notes on OCSP Responses
         // 4.2.2.1.  Time
@@ -89,7 +89,7 @@ public final class OcspResponseValidator {
         final Instant now = DateAndTime.DefaultClock.getInstance().now().toInstant();
         final Instant earliestAcceptableTimeSkew = now.minus(allowedTimeSkew);
         final Instant latestAcceptableTimeSkew = now.plus(allowedTimeSkew);
-        final Instant minimumValidThisUpdateTime = now.minus(maxThisupdateAge);
+        final Instant minimumValidThisUpdateTime = now.minus(maxThisUpdateAge);
 
         final Instant thisUpdate = certStatusResponse.getThisUpdate().toInstant();
         if (thisUpdate.isAfter(latestAcceptableTimeSkew)) {
