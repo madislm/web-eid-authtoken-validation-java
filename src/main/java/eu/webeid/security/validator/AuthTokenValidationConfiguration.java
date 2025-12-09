@@ -24,6 +24,9 @@ package eu.webeid.security.validator;
 
 import eu.webeid.security.certificate.SubjectCertificatePolicies;
 import eu.webeid.security.validator.ocsp.service.DesignatedOcspServiceConfiguration;
+import eu.webeid.security.validator.ocsp.service.FallbackOcspServiceConfiguration;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.retry.RetryConfig;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 
 import java.net.MalformedURLException;
@@ -52,6 +55,9 @@ public final class AuthTokenValidationConfiguration {
     private Duration maxOcspResponseThisUpdateAge = Duration.ofMinutes(2);
     private boolean rejectUnknownOcspResponseStatus;
     private DesignatedOcspServiceConfiguration designatedOcspServiceConfiguration;
+    private Collection<FallbackOcspServiceConfiguration> fallbackOcspServiceConfigurations = new HashSet<>();
+    private CircuitBreakerConfig circuitBreakerConfig;
+    private RetryConfig circuitBreakerRetryConfig;
     // Don't allow Estonian Mobile-ID policy by default.
     private Collection<ASN1ObjectIdentifier> disallowedSubjectCertificatePolicies = newHashSet(
         SubjectCertificatePolicies.ESTEID_SK_2015_MOBILE_ID_POLICY_V1,
@@ -73,6 +79,9 @@ public final class AuthTokenValidationConfiguration {
         this.maxOcspResponseThisUpdateAge = other.maxOcspResponseThisUpdateAge;
         this.rejectUnknownOcspResponseStatus = other.rejectUnknownOcspResponseStatus;
         this.designatedOcspServiceConfiguration = other.designatedOcspServiceConfiguration;
+        this.fallbackOcspServiceConfigurations = Set.copyOf(other.fallbackOcspServiceConfigurations);
+        this.circuitBreakerConfig = other.circuitBreakerConfig;
+        this.circuitBreakerRetryConfig = other.circuitBreakerRetryConfig;
         this.disallowedSubjectCertificatePolicies = Set.copyOf(other.disallowedSubjectCertificatePolicies);
         this.nonceDisabledOcspUrls = Set.copyOf(other.nonceDisabledOcspUrls);
     }
@@ -135,6 +144,26 @@ public final class AuthTokenValidationConfiguration {
 
     public Collection<URI> getNonceDisabledOcspUrls() {
         return nonceDisabledOcspUrls;
+    }
+
+    public Collection<FallbackOcspServiceConfiguration> getFallbackOcspServiceConfigurations() {
+        return fallbackOcspServiceConfigurations;
+    }
+
+    public CircuitBreakerConfig getCircuitBreakerConfig() {
+        return circuitBreakerConfig;
+    }
+
+    public void setCircuitBreakerConfig(CircuitBreakerConfig circuitBreakerConfig) {
+        this.circuitBreakerConfig = circuitBreakerConfig;
+    }
+
+    public RetryConfig getCircuitBreakerRetryConfig() {
+        return circuitBreakerRetryConfig;
+    }
+
+    public void setCircuitBreakerRetryConfig(RetryConfig circuitBreakerRetryConfig) {
+        this.circuitBreakerRetryConfig = circuitBreakerRetryConfig;
     }
 
     public boolean isRejectUnknownOcspResponseStatus() {
