@@ -25,6 +25,7 @@ package eu.webeid.security;
 import eu.webeid.security.exceptions.AuthTokenException;
 import eu.webeid.security.exceptions.UserCertificateOCSPCheckFailedException;
 import eu.webeid.security.exceptions.UserCertificateRevokedException;
+import eu.webeid.security.exceptions.UserCertificateUnknownException;
 import eu.webeid.security.validator.ocsp.OcspClient;
 import eu.webeid.security.validator.ocsp.OcspRequestBuilder;
 import eu.webeid.security.validator.ocsp.OcspResponseValidator;
@@ -116,7 +117,7 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
             decorateCheckedSupplier.withRetry(retry);
         }
         decorateCheckedSupplier.withCircuitBreaker(circuitBreaker)
-            .withFallback(List.of(UserCertificateOCSPCheckFailedException.class, CallNotPermittedException.class), e -> fallbackSupplier.apply());
+            .withFallback(List.of(UserCertificateOCSPCheckFailedException.class, CallNotPermittedException.class, UserCertificateUnknownException.class), e -> fallbackSupplier.apply());
 
         CheckedFunction0<RevocationInfo> decoratedSupplier = decorateCheckedSupplier.decorate();
 
@@ -154,7 +155,7 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
             final Extension requestNonce = request.getExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
             RevocationInfo revocationInfo = OcspResponseValidator.verifyOcspResponse(response, ocspService,
                 requestNonce, subjectCertificate, issuerCertificate, allowedOcspResponseTimeSkew,
-                maxOcspResponseThisUpdateAge);
+                maxOcspResponseThisUpdateAge, rejectUnknownOcspResponseStatus);
             LOG.debug("OCSP check result is GOOD");
 
             return revocationInfo;

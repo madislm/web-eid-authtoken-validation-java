@@ -107,9 +107,9 @@ public final class DefaultOcspRevocationChecker implements OcspCertificateRevoca
             }
 
             final Extension requestNonce = request.getExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
-            RevocationInfo revocationInfo = OcspResponseValidator.verifyOcspResponse(
-                response, ocspService, requestNonce, subjectCertificate, issuerCertificate,
-                allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge);
+            RevocationInfo revocationInfo = OcspResponseValidator.verifyOcspResponse(response, ocspService,
+                requestNonce, subjectCertificate, issuerCertificate, allowedOcspResponseTimeSkew,
+                maxOcspResponseThisUpdateAge, false);
             LOG.debug("OCSP check result is GOOD");
 
             return Collections.singleton(revocationInfo);

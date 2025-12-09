@@ -28,6 +28,7 @@ import eu.webeid.security.exceptions.AuthTokenException;
 import eu.webeid.security.exceptions.OCSPCertificateException;
 import eu.webeid.security.exceptions.UserCertificateOCSPCheckFailedException;
 import eu.webeid.security.exceptions.UserCertificateRevokedException;
+import eu.webeid.security.exceptions.UserCertificateUnknownException;
 import eu.webeid.security.util.DateAndTime;
 import eu.webeid.security.validator.ocsp.service.OcspService;
 import org.bouncycastle.asn1.ocsp.OCSPObjectIdentifiers;
@@ -130,7 +131,7 @@ public final class OcspResponseValidator {
         }
     }
 
-    public static void validateSubjectCertificateStatus(SingleResp certStatusResponse, ValidationInfo validationInfo) throws UserCertificateRevokedException {
+    public static void validateSubjectCertificateStatus(SingleResp certStatusResponse, boolean rejectUnknownOcspResponseStatus, ValidationInfo validationInfo) throws AuthTokenException {
         final CertificateStatus status = certStatusResponse.getCertStatus();
         if (status == null) {
             return;
@@ -141,9 +142,11 @@ public final class OcspResponseValidator {
                 new UserCertificateRevokedException("Revocation reason: " + revokedStatus.getRevocationReason(), validationInfo) :
                 new UserCertificateRevokedException(validationInfo));
         } else if (status instanceof UnknownStatus) {
-            throw new UserCertificateRevokedException("Unknown status", validationInfo);
+            throw rejectUnknownOcspResponseStatus ? new UserCertificateUnknownException("Unknown status", validationInfo)
+                : new UserCertificateRevokedException("Unknown status", validationInfo);
         } else {
-            throw new UserCertificateRevokedException("Status is neither good, revoked nor unknown", validationInfo);
+            throw rejectUnknownOcspResponseStatus ? new UserCertificateUnknownException("Status is neither good, revoked nor unknown", validationInfo)
+                : new UserCertificateRevokedException("Status is neither good, revoked nor unknown", validationInfo);
         }
     }
 
@@ -167,7 +170,8 @@ public final class OcspResponseValidator {
     public static RevocationInfo verifyOcspResponse(OCSPResp ocspResp, OcspService ocspService, Extension requestNonce,
                                                     X509Certificate subjectCertificate, X509Certificate issuerCertificate,
                                                     Duration allowedOcspResponseTimeSkew,
-                                                    Duration maxOcspResponseThisUpdateAge) throws AuthTokenException, OCSPException, CertificateException, OperatorCreationException {
+                                                    Duration maxOcspResponseThisUpdateAge,
+                                                    boolean rejectUnknownOcspResponseStatus) throws AuthTokenException, OCSPException, CertificateException, OperatorCreationException {
         final RevocationInfo revocationInfo = new RevocationInfo(ocspService.getAccessLocation(), null);
         final BasicOCSPResp basicResponse = (BasicOCSPResp) ocspResp.getResponseObject();
         if (basicResponse == null) {
@@ -248,7 +252,7 @@ public final class OcspResponseValidator {
         validateCertificateStatusUpdateTime(certStatusResponse, allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge, validationInfo);
 
         // Now we can accept the signed response as valid and validate the certificate status.
-        validateSubjectCertificateStatus(certStatusResponse, validationInfo);
+        validateSubjectCertificateStatus(certStatusResponse, rejectUnknownOcspResponseStatus, validationInfo);
 
         if (ocspService.doesSupportNonce()) {
             checkNonce(requestNonce, ocspResp, validationInfo);
