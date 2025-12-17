@@ -130,7 +130,7 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
         }));
     }
 
-    private RevocationInfo request(OcspService ocspService, X509Certificate subjectCertificate, X509Certificate issuerCertificate) throws AuthTokenException {
+    private RevocationInfoWithOcspResp request(OcspService ocspService, X509Certificate subjectCertificate, X509Certificate issuerCertificate) throws AuthTokenException {
         OCSPResp response = null;
         try {
             final CertificateID certificateId = OcspResponseValidator.getCertificateId(subjectCertificate, issuerCertificate);
@@ -147,8 +147,8 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
             response = Objects.requireNonNull(ocspClient.request(ocspService.getAccessLocation(), request)); // TODO: This should trigger fallback?
             if (response.getStatus() != OCSPResponseStatus.SUCCESSFUL) {
                 UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException("Response status: " + OcspResponseValidator.ocspStatusToString(response.getStatus()));
-                RevocationInfo revocationInfo = new RevocationInfo(ocspService.getAccessLocation(), exception);
-                exception.setValidationInfo(new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfo)));
+                RevocationInfoWithOcspResp revocationInfoWithOcspResp = new RevocationInfoWithOcspResp(ocspService.getAccessLocation(), exception, response);
+                exception.setValidationInfo(new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfoWithOcspResp)));
                 throw exception;
             }
 
@@ -156,12 +156,16 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
             RevocationInfo revocationInfo = OcspResponseValidator.verifyOcspResponse(response, ocspService,
                 requestNonce, subjectCertificate, issuerCertificate, allowedOcspResponseTimeSkew,
                 maxOcspResponseThisUpdateAge, rejectUnknownOcspResponseStatus);
+            RevocationInfoWithOcspResp revocationInfoWithOcspResp = new RevocationInfoWithOcspResp(
+                revocationInfo,
+                response
+            );
             LOG.debug("OCSP check result is GOOD");
 
-            return revocationInfo;
+            return revocationInfoWithOcspResp;
         } catch (OCSPException | CertificateException | OperatorCreationException | IOException e) {
             UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException(e);
-            RevocationInfo revocationInfo = new RevocationInfo(ocspService.getAccessLocation(), exception);
+            RevocationInfo revocationInfo = new RevocationInfoWithOcspResp(ocspService.getAccessLocation(), exception, response);
             exception.setValidationInfo(new ValidationInfo(subjectCertificate, Collections.singleton(revocationInfo)));
             throw exception;
         }
