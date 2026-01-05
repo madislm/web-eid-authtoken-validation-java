@@ -105,12 +105,12 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
         }
         final OcspService fallbackOcspService = ocspService.getFallbackService();
         if (fallbackOcspService == null) {
-            return Collections.singleton(request(ocspService, subjectCertificate, issuerCertificate));
+            return Collections.singleton(request(ocspService, subjectCertificate, issuerCertificate, false));
         }
 
         CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker(ocspService.getAccessLocation().toASCIIString());
-        CheckedFunction0<RevocationInfo> primarySupplier = () -> request(ocspService, subjectCertificate, issuerCertificate);
-        CheckedFunction0<RevocationInfo> fallbackSupplier = () -> request(ocspService.getFallbackService(), subjectCertificate, issuerCertificate);
+        CheckedFunction0<RevocationInfo> primarySupplier = () -> request(ocspService, subjectCertificate, issuerCertificate, false);
+        CheckedFunction0<RevocationInfo> fallbackSupplier = () -> request(ocspService.getFallbackService(), subjectCertificate, issuerCertificate, true);
         Decorators.DecorateCheckedSupplier<RevocationInfo> decorateCheckedSupplier = Decorators.ofCheckedSupplier(primarySupplier);
         if (retryRegistry != null) {
             Retry retry = retryRegistry.retry(ocspService.getAccessLocation().toASCIIString());
@@ -130,7 +130,7 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
         }));
     }
 
-    private RevocationInfoWithOcspResp request(OcspService ocspService, X509Certificate subjectCertificate, X509Certificate issuerCertificate) throws AuthTokenException {
+    private RevocationInfoWithOcspResp request(OcspService ocspService, X509Certificate subjectCertificate, X509Certificate issuerCertificate, boolean allowThisUpdateInPast) throws AuthTokenException {
         OCSPResp response = null;
         try {
             final CertificateID certificateId = OcspResponseValidator.getCertificateId(subjectCertificate, issuerCertificate);
@@ -155,7 +155,7 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
             final Extension requestNonce = request.getExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
             RevocationInfo revocationInfo = OcspResponseValidator.verifyOcspResponse(response, ocspService,
                 requestNonce, subjectCertificate, issuerCertificate, allowedOcspResponseTimeSkew,
-                maxOcspResponseThisUpdateAge, rejectUnknownOcspResponseStatus);
+                maxOcspResponseThisUpdateAge, rejectUnknownOcspResponseStatus, allowThisUpdateInPast);
             RevocationInfoWithOcspResp revocationInfoWithOcspResp = new RevocationInfoWithOcspResp(
                 revocationInfo,
                 response

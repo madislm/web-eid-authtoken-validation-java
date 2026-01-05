@@ -90,7 +90,7 @@ public final class OcspResponseValidator {
         }
     }
 
-    public static void validateCertificateStatusUpdateTime(SingleResp certStatusResponse, Duration allowedTimeSkew, Duration maxThisUpdateAge, ValidationInfo validationInfo) throws UserCertificateOCSPCheckFailedException {
+    public static void validateCertificateStatusUpdateTime(SingleResp certStatusResponse, Duration allowedTimeSkew, Duration maxThisUpdateAge, ValidationInfo validationInfo, boolean allowThisUpdateInPast) throws UserCertificateOCSPCheckFailedException {
         // From RFC 2560, https://www.ietf.org/rfc/rfc2560.txt:
         // 4.2.2.  Notes on OCSP Responses
         // 4.2.2.1.  Time
@@ -111,7 +111,7 @@ public final class OcspResponseValidator {
                 "thisUpdate '" + thisUpdate + "' is too far in the future, " +
                 "latest allowed: '" + latestAcceptableTimeSkew + "'", validationInfo);
         }
-        if (thisUpdate.isBefore(minimumValidThisUpdateTime)) {
+        if (!allowThisUpdateInPast && thisUpdate.isBefore(minimumValidThisUpdateTime)) {
             throw new UserCertificateOCSPCheckFailedException(ERROR_PREFIX +
                 "thisUpdate '" + thisUpdate + "' is too old, " +
                 "minimum time allowed: '" + minimumValidThisUpdateTime + "'", validationInfo);
@@ -171,7 +171,8 @@ public final class OcspResponseValidator {
                                                     X509Certificate subjectCertificate, X509Certificate issuerCertificate,
                                                     Duration allowedOcspResponseTimeSkew,
                                                     Duration maxOcspResponseThisUpdateAge,
-                                                    boolean rejectUnknownOcspResponseStatus) throws AuthTokenException, OCSPException, CertificateException, OperatorCreationException {
+                                                    boolean rejectUnknownOcspResponseStatus,
+                                                    boolean allowThisUpdateInPast) throws AuthTokenException, OCSPException, CertificateException, OperatorCreationException {
         final RevocationInfo revocationInfo = new RevocationInfo(ocspService.getAccessLocation(), null);
         final BasicOCSPResp basicResponse = (BasicOCSPResp) ocspResp.getResponseObject();
         if (basicResponse == null) {
@@ -249,7 +250,7 @@ public final class OcspResponseValidator {
         //      be available about the status of the certificate (nextUpdate) is
         //      greater than the current time.
 
-        validateCertificateStatusUpdateTime(certStatusResponse, allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge, validationInfo);
+        validateCertificateStatusUpdateTime(certStatusResponse, allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge, validationInfo, allowThisUpdateInPast);
 
         // Now we can accept the signed response as valid and validate the certificate status.
         validateSubjectCertificateStatus(certStatusResponse, rejectUnknownOcspResponseStatus, validationInfo);
