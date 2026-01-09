@@ -23,22 +23,23 @@
 package eu.webeid.security;
 
 import java.security.cert.X509Certificate;
+import java.util.List;
 
 public class ValidationInfo {
 
     private final X509Certificate subjectCertificate;
-    private final Iterable<RevocationInfo> revocationInfos;
+    private final List<RevocationInfo> revocationInfoList;
 
-    public ValidationInfo(X509Certificate subjectCertificate, Iterable<RevocationInfo> revocationInfos) {
+    public ValidationInfo(X509Certificate subjectCertificate, List<RevocationInfo> revocationInfoList) {
         this.subjectCertificate = subjectCertificate;
-        this.revocationInfos = revocationInfos;
+        this.revocationInfoList = revocationInfoList;
     }
 
     public X509Certificate getSubjectCertificate() {
         return subjectCertificate;
     }
 
-    public Iterable<RevocationInfo> getRevocationInfos() {
-        return revocationInfos;
+    public List<RevocationInfo> getRevocationInfoList() {
+        return revocationInfoList;
     }
 }

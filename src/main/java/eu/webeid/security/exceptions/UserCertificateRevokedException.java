@@ -29,7 +29,7 @@ import eu.webeid.security.ValidationInfo;
  */
 public class UserCertificateRevokedException extends AuthTokenException {
 
-    private final ValidationInfo validationInfo;
+    private ValidationInfo validationInfo;
 
     public UserCertificateRevokedException(ValidationInfo validationInfo) {
         super("User certificate has been revoked");
@@ -38,6 +38,14 @@ public class UserCertificateRevokedException extends AuthTokenException {
 
     public UserCertificateRevokedException(String msg, ValidationInfo validationInfo) {
         super("User certificate has been revoked: " + msg);
+        this.validationInfo = validationInfo;
+    }
+
+    public ValidationInfo getValidationInfo() {
+        return validationInfo;
+    }
+
+    public void setValidationInfo(ValidationInfo validationInfo) {
         this.validationInfo = validationInfo;
     }
 }

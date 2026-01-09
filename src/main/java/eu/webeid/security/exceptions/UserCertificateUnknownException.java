@@ -28,7 +28,7 @@ import eu.webeid.security.ValidationInfo;
  * Thrown when the user certificate has been revoked.
  */
 public class UserCertificateUnknownException extends AuthTokenException {
-    private final ValidationInfo validationInfo;
+    private ValidationInfo validationInfo;
 
     public UserCertificateUnknownException(String msg, ValidationInfo validationInfo) {
         super(msg);
@@ -37,5 +37,9 @@ public class UserCertificateUnknownException extends AuthTokenException {
 
     public ValidationInfo getValidationInfo() {
         return validationInfo;
+    }
+
+    public void setValidationInfo(ValidationInfo validationInfo) {
+        this.validationInfo = validationInfo;
     }
 }

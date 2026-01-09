@@ -48,7 +48,7 @@ import java.io.IOException;
 import java.security.cert.CertStore;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
-import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -179,8 +179,8 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
             subjectCertificate.getPublicKey(),
             currentChallengeNonce);
 
-        final Iterable<RevocationInfo> revocationInfo = validateCertificateRevocationStatus(certTrustedValidator, subjectCertificate);
-        return new ValidationInfo(subjectCertificate, revocationInfo);
+        final List<RevocationInfo> revocationInfoList = validateCertificateRevocationStatus(certTrustedValidator, subjectCertificate);
+        return new ValidationInfo(subjectCertificate, revocationInfoList);
     }
 
     /**
@@ -195,8 +195,8 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
         return certTrustedValidator;
     }
 
-    private Iterable<RevocationInfo> validateCertificateRevocationStatus(SubjectCertificateTrustedValidator certTrustedValidator,
-                                                               X509Certificate subjectCertificate) throws AuthTokenException {
+    private List<RevocationInfo> validateCertificateRevocationStatus(SubjectCertificateTrustedValidator certTrustedValidator,
+                                                                     X509Certificate subjectCertificate) throws AuthTokenException {
         X509Certificate issuerCertificate = Objects.requireNonNull(certTrustedValidator.getSubjectCertificateIssuerCertificate());
         return configuration.isUserCertificateRevocationCheckWithOcspEnabled()
             ? revocationChecker.validate(subjectCertificate, issuerCertificate)

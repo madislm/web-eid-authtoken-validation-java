@@ -25,26 +25,31 @@ package eu.webeid.security;
 import eu.webeid.security.exceptions.AuthTokenException;
 
 import java.net.URI;
+import java.util.Map;
 
 public class RevocationInfo {
 
+    public static final String KEY_OCSP_REQUEST = "OCSP_REQUEST";
+    public static final String KEY_OCSP_RESPONSE = "OCSP_RESPONSE";
+    public static final String KEY_OCSP_ERROR = "OCSP_ERROR";
+
     private final URI ocspResponderUri;
-    private AuthTokenException exception;
+    private final Map<String, Object> ocspResponseAttributes;
 
-    public RevocationInfo(URI ocspResponderUri, AuthTokenException exception) {
+    public RevocationInfo(URI ocspResponderUri, Map<String, Object> ocspResponseAttributes) {
         this.ocspResponderUri = ocspResponderUri;
-        this.exception = exception;
-    }
-
-    public void setException(AuthTokenException exception) {
-        this.exception = exception;
+        this.ocspResponseAttributes = ocspResponseAttributes;
     }
 
     public URI getOcspResponderUri() {
         return ocspResponderUri;
     }
 
-    public AuthTokenException getException() {
-        return exception;
+    public Map<String, Object> getOcspResponseAttributes() {
+        return ocspResponseAttributes;
+    }
+
+    public void setException(AuthTokenException exception) {
+        this.ocspResponseAttributes.put(RevocationInfo.KEY_OCSP_ERROR, exception);
     }
 }
