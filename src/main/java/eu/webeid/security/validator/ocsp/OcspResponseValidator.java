@@ -22,13 +22,10 @@
 
 package eu.webeid.security.validator.ocsp;
 
-import eu.webeid.security.RevocationInfo;
-import eu.webeid.security.ValidationInfo;
 import eu.webeid.security.exceptions.AuthTokenException;
 import eu.webeid.security.exceptions.OCSPCertificateException;
 import eu.webeid.security.exceptions.UserCertificateOCSPCheckFailedException;
 import eu.webeid.security.exceptions.UserCertificateRevokedException;
-import eu.webeid.security.exceptions.UserCertificateUnknownException;
 import eu.webeid.security.util.DateAndTime;
 import eu.webeid.security.validator.ocsp.service.OcspService;
 import org.bouncycastle.asn1.ocsp.OCSPObjectIdentifiers;
@@ -38,7 +35,6 @@ import org.bouncycastle.cert.ocsp.BasicOCSPResp;
 import org.bouncycastle.cert.ocsp.CertificateID;
 import org.bouncycastle.cert.ocsp.CertificateStatus;
 import org.bouncycastle.cert.ocsp.OCSPException;
-import org.bouncycastle.cert.ocsp.OCSPReq;
 import org.bouncycastle.cert.ocsp.OCSPResp;
 import org.bouncycastle.cert.ocsp.RevokedStatus;
 import org.bouncycastle.cert.ocsp.SingleResp;
@@ -50,7 +46,6 @@ import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.URI;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateParsingException;
@@ -58,9 +53,6 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public final class OcspResponseValidator {
@@ -85,16 +77,16 @@ public final class OcspResponseValidator {
         }
     }
 
-    public static void validateResponseSignature(BasicOCSPResp basicResponse, X509CertificateHolder responderCert, ValidationInfo validationInfo) throws CertificateException, OperatorCreationException, OCSPException, UserCertificateOCSPCheckFailedException {
+    public static void validateResponseSignature(BasicOCSPResp basicResponse, X509CertificateHolder responderCert) throws CertificateException, OperatorCreationException, OCSPException, UserCertificateOCSPCheckFailedException {
         final ContentVerifierProvider verifierProvider = new JcaContentVerifierProviderBuilder()
             .setProvider("BC")
             .build(responderCert);
         if (!basicResponse.isSignatureValid(verifierProvider)) {
-            throw new UserCertificateOCSPCheckFailedException("OCSP response signature is invalid", validationInfo);
+            throw new UserCertificateOCSPCheckFailedException("OCSP response signature is invalid");
         }
     }
 
-    public static void validateCertificateStatusUpdateTime(SingleResp certStatusResponse, Duration allowedTimeSkew, Duration maxThisUpdateAge, ValidationInfo validationInfo, boolean allowThisUpdateInPast) throws UserCertificateOCSPCheckFailedException {
+    public static void validateCertificateStatusUpdateTime(SingleResp certStatusResponse, Duration allowedTimeSkew, Duration maxThisUpdateAge, boolean allowThisUpdateInPast) throws UserCertificateOCSPCheckFailedException {
         // From RFC 2560, https://www.ietf.org/rfc/rfc2560.txt:
         // 4.2.2.  Notes on OCSP Responses
         // 4.2.2.1.  Time
@@ -113,12 +105,12 @@ public final class OcspResponseValidator {
         if (thisUpdate.isAfter(latestAcceptableTimeSkew)) {
             throw new UserCertificateOCSPCheckFailedException(ERROR_PREFIX +
                 "thisUpdate '" + thisUpdate + "' is too far in the future, " +
-                "latest allowed: '" + latestAcceptableTimeSkew + "'", validationInfo);
+                "latest allowed: '" + latestAcceptableTimeSkew + "'");
         }
         if (!allowThisUpdateInPast && thisUpdate.isBefore(minimumValidThisUpdateTime)) {
             throw new UserCertificateOCSPCheckFailedException(ERROR_PREFIX +
                 "thisUpdate '" + thisUpdate + "' is too old, " +
-                "minimum time allowed: '" + minimumValidThisUpdateTime + "'", validationInfo);
+                "minimum time allowed: '" + minimumValidThisUpdateTime + "'");
         }
 
         if (certStatusResponse.getNextUpdate() == null) {
@@ -127,15 +119,15 @@ public final class OcspResponseValidator {
         final Instant nextUpdate = certStatusResponse.getNextUpdate().toInstant();
         if (nextUpdate.isBefore(earliestAcceptableTimeSkew)) {
             throw new UserCertificateOCSPCheckFailedException(ERROR_PREFIX +
-                "nextUpdate '" + nextUpdate + "' is in the past", validationInfo);
+                "nextUpdate '" + nextUpdate + "' is in the past");
         }
         if (nextUpdate.isBefore(thisUpdate)) {
             throw new UserCertificateOCSPCheckFailedException(ERROR_PREFIX +
-                "nextUpdate '" + nextUpdate + "' is before thisUpdate '" + thisUpdate + "'", validationInfo);
+                "nextUpdate '" + nextUpdate + "' is before thisUpdate '" + thisUpdate + "'");
         }
     }
 
-    public static void validateSubjectCertificateStatus(SingleResp certStatusResponse, boolean rejectUnknownOcspResponseStatus, ValidationInfo validationInfo) throws AuthTokenException {
+    public static void validateSubjectCertificateStatus(SingleResp certStatusResponse, boolean rejectUnknownOcspResponseStatus) throws AuthTokenException {
         final CertificateStatus status = certStatusResponse.getCertStatus();
         if (status == null) {
             return;
@@ -143,14 +135,14 @@ public final class OcspResponseValidator {
         if (status instanceof RevokedStatus) {
             RevokedStatus revokedStatus = (RevokedStatus) status;
             throw (revokedStatus.hasRevocationReason() ?
-                new UserCertificateRevokedException("Revocation reason: " + revokedStatus.getRevocationReason(), validationInfo) :
-                new UserCertificateRevokedException(validationInfo));
+                new UserCertificateRevokedException("Revocation reason: " + revokedStatus.getRevocationReason()) :
+                new UserCertificateRevokedException());
         } else if (status instanceof UnknownStatus) {
-            throw rejectUnknownOcspResponseStatus ? new UserCertificateUnknownException("Unknown status", validationInfo)
-                : new UserCertificateRevokedException("Unknown status", validationInfo);
+            throw rejectUnknownOcspResponseStatus ? new UserCertificateOCSPCheckFailedException("Unknown status")
+                : new UserCertificateRevokedException("Unknown status");
         } else {
-            throw rejectUnknownOcspResponseStatus ? new UserCertificateUnknownException("Status is neither good, revoked nor unknown", validationInfo)
-                : new UserCertificateRevokedException("Status is neither good, revoked nor unknown", validationInfo);
+            throw rejectUnknownOcspResponseStatus ? new UserCertificateOCSPCheckFailedException("Status is neither good, revoked nor unknown")
+                : new UserCertificateRevokedException("Status is neither good, revoked nor unknown");
         }
     }
 
@@ -171,23 +163,15 @@ public final class OcspResponseValidator {
         }
     }
 
-    public static void verifyOcspResponse(OCSPResp ocspResp, OCSPReq ocspReq, OcspService ocspService, Extension requestNonce,
+    public static void verifyOcspResponse(OCSPResp ocspResp, OcspService ocspService, Extension requestNonce,
                                           X509Certificate subjectCertificate, X509Certificate issuerCertificate,
                                           Duration allowedOcspResponseTimeSkew,
                                           Duration maxOcspResponseThisUpdateAge,
                                           boolean rejectUnknownOcspResponseStatus,
                                           boolean allowThisUpdateInPast) throws AuthTokenException, OCSPException, CertificateException, OperatorCreationException {
-        final RevocationInfo revocationInfo = new RevocationInfo(ocspService.getAccessLocation(), new HashMap<>(Map.ofEntries(
-            Map.entry(RevocationInfo.KEY_OCSP_REQUEST, ocspReq),
-            Map.entry(RevocationInfo.KEY_OCSP_RESPONSE, ocspResp)
-        )));
-        final ValidationInfo validationInfo = new ValidationInfo(subjectCertificate, List.of(revocationInfo));
         final BasicOCSPResp basicResponse = (BasicOCSPResp) ocspResp.getResponseObject();
         if (basicResponse == null) {
-            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException("Missing Basic OCSP Response");
-            revocationInfo.setException(exception);
-            exception.setValidationInfo(validationInfo);
-            throw exception;
+            throw new UserCertificateOCSPCheckFailedException("Missing Basic OCSP Response");
         }
 
         // The verification algorithm follows RFC 2560, https://www.ietf.org/rfc/rfc2560.txt.
@@ -201,20 +185,18 @@ public final class OcspResponseValidator {
 
         // As we sent the request for only a single certificate, we expect only a single response.
         if (basicResponse.getResponses().length != 1) {
-            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException("OCSP response must contain one response, "
+            throw new UserCertificateOCSPCheckFailedException("OCSP response must contain one response, "
                 + "received " + basicResponse.getResponses().length + " responses instead");
-            revocationInfo.setException(exception);
-            exception.setValidationInfo(validationInfo);
-            throw exception;
         }
-        final CertificateID requestCertificateId = getCertificateId(subjectCertificate, issuerCertificate, ocspService.getAccessLocation(), ocspReq, ocspResp);
+        CertificateID requestCertificateId;
+        try {
+            requestCertificateId = getCertificateId(subjectCertificate, issuerCertificate);
+        } catch (CertificateEncodingException | IOException | OCSPException e) {
+            throw new UserCertificateOCSPCheckFailedException(e);
+        }
         final SingleResp certStatusResponse = basicResponse.getResponses()[0];
         if (!requestCertificateId.equals(certStatusResponse.getCertID())) {
-            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException(
-                "OCSP responded with certificate ID that differs from the requested ID");
-            revocationInfo.setException(exception);
-            exception.setValidationInfo(validationInfo);
-            throw exception;
+            throw new UserCertificateOCSPCheckFailedException("OCSP responded with certificate ID that differs from the requested ID");
         }
 
         //   2. The signature on the response is valid.
@@ -223,15 +205,12 @@ public final class OcspResponseValidator {
         // that helps us to verify it. According to RFC 2560 this field is optional, but including it
         // is standard practice.
         if (basicResponse.getCerts().length < 1) {
-            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException("OCSP response must contain the responder certificate, "
+            throw new UserCertificateOCSPCheckFailedException("OCSP response must contain the responder certificate, "
                 + "but none was provided");
-            revocationInfo.setException(exception);
-            exception.setValidationInfo(validationInfo);
-            throw exception;
         }
         // The first certificate is the responder certificate, other certificates, if given, are the certificate's chain.
         final X509CertificateHolder responderCert = basicResponse.getCerts()[0];
-        validateResponseSignature(basicResponse, responderCert, validationInfo);
+        validateResponseSignature(basicResponse, responderCert);
 
         //   3. The identity of the signer matches the intended recipient of the
         //      request.
@@ -244,10 +223,7 @@ public final class OcspResponseValidator {
         try {
             ocspService.validateResponderCertificate(responderCert, now);
         } catch (AuthTokenException e) {
-            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException(e);
-            revocationInfo.setException(exception);
-            exception.setValidationInfo(validationInfo);
-            throw exception;
+            throw new UserCertificateOCSPCheckFailedException(e);
         }
 
         //   5. The time at which the status being indicated is known to be
@@ -257,13 +233,13 @@ public final class OcspResponseValidator {
         //      be available about the status of the certificate (nextUpdate) is
         //      greater than the current time.
 
-        validateCertificateStatusUpdateTime(certStatusResponse, allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge, validationInfo, allowThisUpdateInPast);
+        validateCertificateStatusUpdateTime(certStatusResponse, allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge, allowThisUpdateInPast);
 
         // Now we can accept the signed response as valid and validate the certificate status.
-        validateSubjectCertificateStatus(certStatusResponse, rejectUnknownOcspResponseStatus, validationInfo);
+        validateSubjectCertificateStatus(certStatusResponse, rejectUnknownOcspResponseStatus);
 
         if (ocspService.doesSupportNonce()) {
-            checkNonce(requestNonce, ocspResp, validationInfo);
+            checkNonce(requestNonce, ocspResp);
         }
     }
 
@@ -274,23 +250,7 @@ public final class OcspResponseValidator {
             new X509CertificateHolder(issuerCertificate.getEncoded()), serial);
     }
 
-    private static CertificateID getCertificateId(X509Certificate subjectCertificate, X509Certificate issuerCertificate,
-                                                  URI ocspResponderUri, OCSPReq ocspReq, OCSPResp ocspResp) throws AuthTokenException {
-        try {
-            return getCertificateId(subjectCertificate, issuerCertificate);
-        } catch (CertificateEncodingException | IOException | OCSPException e) {
-            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException(e);
-            RevocationInfo revocationInfo = new RevocationInfo(ocspResponderUri, new HashMap<>(Map.ofEntries(
-                Map.entry(RevocationInfo.KEY_OCSP_ERROR, exception),
-                Map.entry(RevocationInfo.KEY_OCSP_REQUEST, ocspReq),
-                Map.entry(RevocationInfo.KEY_OCSP_RESPONSE, ocspResp)
-            )));
-            exception.setValidationInfo(new ValidationInfo(subjectCertificate, List.of(revocationInfo)));
-            throw exception;
-        }
-    }
-
-    private static void checkNonce(Extension requestNonce, OCSPResp ocspResp, ValidationInfo validationInfo) throws UserCertificateOCSPCheckFailedException, OCSPException {
+    private static void checkNonce(Extension requestNonce, OCSPResp ocspResp) throws UserCertificateOCSPCheckFailedException, OCSPException {
         final BasicOCSPResp basicResponse = (BasicOCSPResp) ocspResp.getResponseObject();
         if (basicResponse == null) {
             throw new UserCertificateOCSPCheckFailedException("Missing Basic OCSP Response");
@@ -298,11 +258,11 @@ public final class OcspResponseValidator {
         final Extension responseNonce = basicResponse.getExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
         if (requestNonce == null || responseNonce == null) {
             throw new UserCertificateOCSPCheckFailedException("OCSP request or response nonce extension missing, " +
-                "possible replay attack", validationInfo);
+                "possible replay attack");
         }
         if (!requestNonce.equals(responseNonce)) {
             throw new UserCertificateOCSPCheckFailedException("OCSP request and response nonces differ, " +
-                "possible replay attack", validationInfo);
+                "possible replay attack");
         }
     }
 

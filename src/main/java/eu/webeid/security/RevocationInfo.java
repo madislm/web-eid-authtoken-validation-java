@@ -32,6 +32,7 @@ public class RevocationInfo {
     public static final String KEY_OCSP_REQUEST = "OCSP_REQUEST";
     public static final String KEY_OCSP_RESPONSE = "OCSP_RESPONSE";
     public static final String KEY_OCSP_ERROR = "OCSP_ERROR";
+    public static final String KEY_HTTP_STATUS_CODE = "HTTP_STATUS_CODE";
 
     private final URI ocspResponderUri;
     private final Map<String, Object> ocspResponseAttributes;

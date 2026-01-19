@@ -20,17 +20,23 @@
  * SOFTWARE.
  */
 
-package eu.webeid.security.exceptions;
+package eu.webeid.security;
 
-/**
- * Thrown when user certificate revocation check with OCSP fails.
- */
-public class UserCertificateOCSPCheckFailedException extends AuthTokenException {
-    public UserCertificateOCSPCheckFailedException(Throwable cause) {
-        super("User certificate revocation check has failed", cause);
+import eu.webeid.security.exceptions.UserCertificateRevokedException;
+
+public class TaraUserCertificateRevokedException extends UserCertificateRevokedException {
+
+    private ValidationInfo validationInfo;
+
+    public TaraUserCertificateRevokedException(ValidationInfo validationInfo) {
+        this.validationInfo = validationInfo;
     }
 
-    public UserCertificateOCSPCheckFailedException(String message) {
-        super("User certificate revocation check has failed: " + message);
+    public ValidationInfo getValidationInfo() {
+        return validationInfo;
+    }
+
+    public void setValidationInfo(ValidationInfo validationInfo) {
+        this.validationInfo = validationInfo;
     }
 }

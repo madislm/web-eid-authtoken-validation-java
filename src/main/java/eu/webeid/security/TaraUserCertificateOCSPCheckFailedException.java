@@ -20,18 +20,29 @@
  * SOFTWARE.
  */
 
-package eu.webeid.security.exceptions;
+package eu.webeid.security;
 
-import eu.webeid.security.ValidationInfo;
+import eu.webeid.security.exceptions.UserCertificateOCSPCheckFailedException;
 
-/**
- * Thrown when the user certificate has been revoked.
- */
-public class UserCertificateUnknownException extends AuthTokenException {
+public class TaraUserCertificateOCSPCheckFailedException extends UserCertificateOCSPCheckFailedException {
+
     private ValidationInfo validationInfo;
 
-    public UserCertificateUnknownException(String msg, ValidationInfo validationInfo) {
-        super(msg);
+    public TaraUserCertificateOCSPCheckFailedException(Throwable cause) {
+        this(cause, null);
+    }
+
+    public TaraUserCertificateOCSPCheckFailedException(String message) {
+        this(message, null);
+    }
+
+    public TaraUserCertificateOCSPCheckFailedException(Throwable cause, ValidationInfo validationInfo) {
+        super(cause);
+        this.validationInfo = validationInfo;
+    }
+
+    public TaraUserCertificateOCSPCheckFailedException(String message, ValidationInfo validationInfo) {
+        super(message);
         this.validationInfo = validationInfo;
     }
 

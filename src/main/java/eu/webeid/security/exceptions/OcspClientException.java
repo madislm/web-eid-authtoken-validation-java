@@ -22,15 +22,38 @@
 
 package eu.webeid.security.exceptions;
 
-/**
- * Thrown when user certificate revocation check with OCSP fails.
- */
-public class UserCertificateOCSPCheckFailedException extends AuthTokenException {
-    public UserCertificateOCSPCheckFailedException(Throwable cause) {
-        super("User certificate revocation check has failed", cause);
+public class OcspClientException extends RuntimeException {
+
+    private byte[] responseBody;
+
+    private Integer statusCode;
+
+    public OcspClientException() {
     }
 
-    public UserCertificateOCSPCheckFailedException(String message) {
-        super("User certificate revocation check has failed: " + message);
+    public OcspClientException(String message) {
+        super(message);
+    }
+
+    public OcspClientException(Throwable cause) {
+        super(cause);
+    }
+
+    public OcspClientException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
+    public OcspClientException(String message, byte[] responseBody, int statusCode) {
+        super(message);
+        this.responseBody = responseBody;
+        this.statusCode = statusCode;
+    }
+
+    public byte[] getResponseBody() {
+        return responseBody;
+    }
+
+    public Integer getStatusCode() {
+        return statusCode;
     }
 }

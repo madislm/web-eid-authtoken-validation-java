@@ -24,8 +24,8 @@ package eu.webeid.security.validator.certvalidators;
 
 import eu.webeid.security.OcspCertificateRevocationChecker;
 import eu.webeid.security.RevocationInfo;
-import eu.webeid.security.ValidationInfo;
 import eu.webeid.security.exceptions.AuthTokenException;
+import eu.webeid.security.exceptions.OcspClientException;
 import eu.webeid.security.exceptions.UserCertificateOCSPCheckFailedException;
 import eu.webeid.security.validator.ocsp.OcspClient;
 import eu.webeid.security.validator.ocsp.OcspRequestBuilder;
@@ -45,7 +45,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.URI;
 import java.security.Security;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -87,7 +86,7 @@ public final class DefaultOcspRevocationChecker implements OcspCertificateRevoca
     @Override
     public List<RevocationInfo> validate(X509Certificate subjectCertificate,
                                          X509Certificate issuerCertificate) throws AuthTokenException {
-        OcspService ocspService = null;
+        OcspService ocspService;
         OCSPResp response;
         try {
             ocspService = ocspServiceProvider.getService(subjectCertificate);
@@ -109,20 +108,14 @@ public final class DefaultOcspRevocationChecker implements OcspCertificateRevoca
             }
 
             final Extension requestNonce = request.getExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nonce);
-            OcspResponseValidator.verifyOcspResponse(response, request, ocspService,
+            OcspResponseValidator.verifyOcspResponse(response, ocspService,
                 requestNonce, subjectCertificate, issuerCertificate, allowedOcspResponseTimeSkew,
                 maxOcspResponseThisUpdateAge, false, false);
             LOG.debug("OCSP check result is GOOD");
 
             return List.of(new RevocationInfo(ocspService.getAccessLocation(), new HashMap<>(Map.of(RevocationInfo.KEY_OCSP_RESPONSE, response))));
-        } catch (OCSPException | CertificateException | OperatorCreationException | IOException e) {
-            URI ocspResponderUri = ocspService != null
-                ? ocspService.getAccessLocation()
-                : null;
-            UserCertificateOCSPCheckFailedException exception = new UserCertificateOCSPCheckFailedException(e);
-            RevocationInfo revocationInfo = new RevocationInfo(ocspResponderUri, new HashMap<>(Map.of(RevocationInfo.KEY_OCSP_ERROR, exception)));
-            exception.setValidationInfo(new ValidationInfo(subjectCertificate, List.of(revocationInfo)));
-            throw exception;
+        } catch (OCSPException | CertificateException | OperatorCreationException | IOException | OcspClientException e) {
+            throw new UserCertificateOCSPCheckFailedException(e);
         }
     }
 

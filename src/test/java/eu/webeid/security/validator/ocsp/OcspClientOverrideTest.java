@@ -23,6 +23,7 @@
 package eu.webeid.security.validator.ocsp;
 
 import eu.webeid.security.exceptions.JceException;
+import eu.webeid.security.exceptions.OcspClientException;
 import eu.webeid.security.testutil.AbstractTestWithValidator;
 import eu.webeid.security.testutil.AuthTokenValidators;
 import eu.webeid.security.validator.AuthTokenValidator;
@@ -62,12 +63,12 @@ class OcspClientOverrideTest extends AbstractTestWithValidator {
 
     private static class OcpClientThatThrows implements OcspClient {
         @Override
-        public OCSPResp request(URI url, OCSPReq request) throws IOException {
+        public OCSPResp request(URI url, OCSPReq request) throws OcspClientException {
             throw new OcpClientThatThrowsException();
         }
     }
 
-    private static class OcpClientThatThrowsException extends IOException {
+    private static class OcpClientThatThrowsException extends OcspClientException {
     }
 
 }
