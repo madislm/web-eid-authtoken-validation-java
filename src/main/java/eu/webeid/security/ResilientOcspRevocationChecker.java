@@ -126,6 +126,19 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
         Decorators.DecorateCheckedSupplier<RevocationInfo> decorateCheckedSupplier = Decorators.ofCheckedSupplier(primarySupplier);
         if (retryRegistry != null) {
             Retry retry = retryRegistry.retry(ocspService.getAccessLocation().toASCIIString());
+            retry.getEventPublisher().onError(event -> {
+                Throwable throwable = event.getLastThrowable();
+                if (throwable == null) {
+                    return;
+                }
+                if (throwable instanceof TaraUserCertificateOCSPCheckFailedException) {
+                    revocationInfoList.addAll(((TaraUserCertificateOCSPCheckFailedException) throwable).getValidationInfo().getRevocationInfoList());
+                    return;
+                }
+                revocationInfoList.add(new RevocationInfo(null, Map.ofEntries(
+                    Map.entry(RevocationInfo.KEY_OCSP_ERROR, throwable)
+                )));
+            });
             decorateCheckedSupplier.withRetry(retry);
         }
         decorateCheckedSupplier.withCircuitBreaker(circuitBreaker)
