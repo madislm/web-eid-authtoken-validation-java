@@ -39,6 +39,7 @@ import org.bouncycastle.cert.ocsp.OCSPResp;
 import org.bouncycastle.cert.ocsp.RevokedStatus;
 import org.bouncycastle.cert.ocsp.SingleResp;
 import org.bouncycastle.cert.ocsp.UnknownStatus;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentVerifierProvider;
 import org.bouncycastle.operator.DigestCalculator;
 import org.bouncycastle.operator.OperatorCreationException;
@@ -79,7 +80,7 @@ public final class OcspResponseValidator {
 
     public static void validateResponseSignature(BasicOCSPResp basicResponse, X509CertificateHolder responderCert) throws CertificateException, OperatorCreationException, OCSPException, UserCertificateOCSPCheckFailedException {
         final ContentVerifierProvider verifierProvider = new JcaContentVerifierProviderBuilder()
-            .setProvider("BC")
+            .setProvider(BouncyCastleProvider.PROVIDER_NAME)
             .build(responderCert);
         if (!basicResponse.isSignatureValid(verifierProvider)) {
             throw new UserCertificateOCSPCheckFailedException("OCSP response signature is invalid");

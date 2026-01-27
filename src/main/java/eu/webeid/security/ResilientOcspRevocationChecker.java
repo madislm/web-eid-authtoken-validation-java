@@ -46,10 +46,12 @@ import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.cert.ocsp.CertificateID;
 import org.bouncycastle.cert.ocsp.OCSPReq;
 import org.bouncycastle.cert.ocsp.OCSPResp;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URI;
+import java.security.Security;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -69,6 +71,12 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
     private final boolean rejectUnknownOcspResponseStatus;
     private final CircuitBreakerRegistry circuitBreakerRegistry;
     private final RetryRegistry retryRegistry;
+
+    static {
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(new BouncyCastleProvider());
+        }
+    }
 
     public ResilientOcspRevocationChecker(OcspClient ocspClient, OcspServiceProvider ocspServiceProvider, CircuitBreakerConfig circuitBreakerConfig, RetryConfig retryConfig, Duration allowedOcspResponseTimeSkew, Duration maxOcspResponseThisUpdateAge, boolean rejectUnknownOcspResponseStatus) {
         this.ocspClient = ocspClient;
@@ -122,7 +130,29 @@ public class ResilientOcspRevocationChecker implements OcspCertificateRevocation
         });
 
         CheckedFunction0<RevocationInfo> primarySupplier = () -> request(ocspService, subjectCertificate, issuerCertificate, false);
-        CheckedFunction0<RevocationInfo> fallbackSupplier = () -> request(ocspService.getFallbackService(), subjectCertificate, issuerCertificate, true);
+        OcspService firstFallbackService = ocspService.getFallbackService();
+        CheckedFunction0<RevocationInfo> firstFallbackSupplier = () -> request(ocspService.getFallbackService(), subjectCertificate, issuerCertificate, true);
+        OcspService secondFallbackService = ocspServiceProvider.getFallbackService(firstFallbackService.getAccessLocation());
+        CheckedFunction0<RevocationInfo> fallbackSupplier;
+        if (secondFallbackService == null) {
+            fallbackSupplier = firstFallbackSupplier;
+        } else {
+            CheckedFunction0<RevocationInfo> secondFallbackSupplier = () -> request(secondFallbackService, subjectCertificate, issuerCertificate, true);
+            fallbackSupplier = () -> {
+                try {
+                    return firstFallbackSupplier.apply();
+                } catch (Exception e) {
+                    if (e instanceof TaraUserCertificateOCSPCheckFailedException) {
+                        revocationInfoList.addAll(((TaraUserCertificateOCSPCheckFailedException) e).getValidationInfo().getRevocationInfoList());
+                    } else {
+                        revocationInfoList.add(new RevocationInfo(null, Map.ofEntries(
+                            Map.entry(RevocationInfo.KEY_OCSP_ERROR, e)
+                        )));
+                    }
+                    return secondFallbackSupplier.apply();
+                }
+            };
+        }
         Decorators.DecorateCheckedSupplier<RevocationInfo> decorateCheckedSupplier = Decorators.ofCheckedSupplier(primarySupplier);
         if (retryRegistry != null) {
             Retry retry = retryRegistry.retry(ocspService.getAccessLocation().toASCIIString());
