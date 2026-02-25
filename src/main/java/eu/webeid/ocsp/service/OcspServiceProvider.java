@@ -51,9 +51,7 @@ public class OcspServiceProvider {
         this.aiaOcspServiceConfiguration = Objects.requireNonNull(aiaOcspServiceConfiguration, "aiaOcspServiceConfiguration");
         if (fallbackOcspServiceConfigurations != null) {
             for (FallbackOcspServiceConfiguration configuration : fallbackOcspServiceConfigurations) {
-                String issuerCN = getIssuerCommonName(configuration.getResponderCertificate()).orElseThrow(() ->
-                    new RuntimeException("Certificate does not contain issuer CN"));
-                fallbackOcspServiceMap.put(issuerCN, new FallbackOcspService(configuration));
+                fallbackOcspServiceMap.put(configuration.getIssuerCN(), new FallbackOcspService(configuration));
             }
         }
     }
