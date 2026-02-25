@@ -26,8 +26,11 @@ import eu.webeid.ocsp.exceptions.OCSPCertificateException;
 import eu.webeid.ocsp.protocol.OcspResponseValidator;
 
 import java.net.URI;
+import java.security.cert.CertStore;
+import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
+import java.util.Set;
 
 public class FallbackOcspServiceConfiguration {
 
@@ -35,15 +38,25 @@ public class FallbackOcspServiceConfiguration {
     private final X509Certificate responderCertificate;
     private final boolean doesSupportNonce;
     private final FallbackOcspServiceConfiguration nextFallbackConfiguration;
+    private final String issuerCN;
+    private final Set<TrustAnchor> trustedCACertificateAnchors;
+    private final CertStore trustedCACertificateCertStore;
 
     public FallbackOcspServiceConfiguration(URI accessLocation, X509Certificate responderCertificate,
                                             boolean doesSupportNonce,
-                                            FallbackOcspServiceConfiguration nextFallbackConfiguration) throws OCSPCertificateException {
+                                            FallbackOcspServiceConfiguration nextFallbackConfiguration,
+                                            String issuerCN, Set<TrustAnchor> trustedCACertificateAnchors,
+                                            CertStore trustedCACertificateCertStore) throws OCSPCertificateException {
         this.accessLocation = Objects.requireNonNull(accessLocation, "Fallback OCSP service access location");
-        this.responderCertificate = Objects.requireNonNull(responderCertificate, "Fallback OCSP responder certificate");
-        OcspResponseValidator.validateHasSigningExtension(responderCertificate);
+        this.responderCertificate = responderCertificate;
+        if (responderCertificate != null) {
+            OcspResponseValidator.validateHasSigningExtension(responderCertificate);
+        }
         this.doesSupportNonce = doesSupportNonce;
         this.nextFallbackConfiguration = nextFallbackConfiguration;
+        this.issuerCN = issuerCN;
+        this.trustedCACertificateAnchors = Objects.requireNonNull(trustedCACertificateAnchors);
+        this.trustedCACertificateCertStore = Objects.requireNonNull(trustedCACertificateCertStore);
     }
 
     public URI getAccessLocation() {
@@ -60,5 +73,17 @@ public class FallbackOcspServiceConfiguration {
 
     public FallbackOcspServiceConfiguration getNextFallbackConfiguration() {
         return nextFallbackConfiguration;
+    }
+
+    public String getIssuerCN() {
+        return issuerCN;
+    }
+
+    public Set<TrustAnchor> getTrustedCACertificateAnchors() {
+        return trustedCACertificateAnchors;
+    }
+
+    public CertStore getTrustedCACertificateCertStore() {
+        return trustedCACertificateCertStore;
     }
 }
