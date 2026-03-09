@@ -30,5 +30,7 @@ public record RevocationInfo(URI ocspResponderUri, Map<String, Object> ocspRespo
     public static final String KEY_OCSP_RESPONSE = "OCSP_RESPONSE";
     public static final String KEY_OCSP_ERROR = "OCSP_ERROR";
     public static final String KEY_HTTP_STATUS_CODE = "HTTP_STATUS_CODE";
-
+    public static final String KEY_REQUEST_DURATION = "REQUEST_DURATION";
+    public static final String KEY_CIRCUIT_BREAKER_STATISTICS = "CIRCUIT_BREAKER_STATISTICS";
+    public static final String KEY_OCSP_RESPONSE_TIME = "OCSP_RESPONSE_TIME";
 }
