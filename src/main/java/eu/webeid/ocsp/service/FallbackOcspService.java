@@ -78,27 +78,35 @@ public class FallbackOcspService implements OcspService {
             final X509Certificate responderCertificate = certificateConverter.getCertificate(cert);
             requireCertificateIsValidOnDate(responderCertificate, now, "Fallback OCSP responder");
             if (trustedResponderCertificate != null) {
-                // Certificate pinning is implemented simply by comparing the certificates or their public keys,
-                // see https://owasp.org/www-community/controls/Certificate_and_Public_Key_Pinning.
-                if (!trustedResponderCertificate.equals(responderCertificate)) {
-                    throw new OCSPCertificateException("Responder certificate from the OCSP response is not equal to " +
-                        "the configured fallback OCSP responder certificate");
-                }
-                return;
+                validatePinnedResponderCertificate(responderCertificate);
+            } else {
+                validateResponderCertificateAgainstTrustedCa(responderCertificate, now);
             }
-            OcspResponseValidator.validateHasSigningExtension(responderCertificate);
-            CertificateValidator.validateCertificateTrustAndRevocation(
-                responderCertificate,
-                trustedCACertificateAnchors,
-                trustedCACertificateCertStore,
-                now,
-                RevocationMode.DISABLED,
-                null,
-                null
-            );
         } catch (CertificateException e) {
             throw new OCSPCertificateException("X509CertificateHolder conversion to X509Certificate failed", e);
         }
+    }
+
+    private void validatePinnedResponderCertificate(X509Certificate responderCertificate) throws OCSPCertificateException {
+        // Certificate pinning is implemented simply by comparing the certificates or their public keys,
+        // see https://owasp.org/www-community/controls/Certificate_and_Public_Key_Pinning.
+        if (!trustedResponderCertificate.equals(responderCertificate)) {
+            throw new OCSPCertificateException("Responder certificate from the OCSP response is not equal to " +
+                "the configured fallback OCSP responder certificate");
+        }
+    }
+
+    private void validateResponderCertificateAgainstTrustedCa(X509Certificate responderCertificate, Date now) throws AuthTokenException {
+        OcspResponseValidator.validateHasSigningExtension(responderCertificate);
+        CertificateValidator.validateCertificateTrustAndRevocation(
+            responderCertificate,
+            trustedCACertificateAnchors,
+            trustedCACertificateCertStore,
+            now,
+            RevocationMode.DISABLED,
+            null,
+            null
+        );
     }
 
     public FallbackOcspService getNextFallback() {
