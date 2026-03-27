@@ -65,6 +65,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -123,6 +124,8 @@ public class OcspCertificateRevocationCheckerTest extends AbstractTestWithValida
         final OcspCertificateRevocationChecker validator = getOcspCertificateRevocationChecker(ocspServiceProvider);
         assertThatCode(() ->
             validator.validateCertificateNotRevoked(estEid2018Cert, testEsteid2018CA))
+            .isInstanceOf(UserCertificateOCSPCheckFailedException.class)
+            .cause()
             .isInstanceOf(OCSPClientException.class)
             .cause()
             .isInstanceOf(ConnectException.class);
@@ -132,10 +135,11 @@ public class OcspCertificateRevocationCheckerTest extends AbstractTestWithValida
     void whenOcspRequestFails_thenThrows() throws Exception {
         final OcspServiceProvider ocspServiceProvider = getDesignatedOcspServiceProvider("http://demo.sk.ee/ocsps");
         final OcspCertificateRevocationChecker validator = getOcspCertificateRevocationChecker(ocspServiceProvider);
-        OCSPClientException ex = assertThrows(OCSPClientException.class, () ->
+        UserCertificateOCSPCheckFailedException ex = assertThrows(UserCertificateOCSPCheckFailedException.class, () ->
             validator.validateCertificateNotRevoked(estEid2018Cert, testEsteid2018CA));
-        assertThat(ex).hasMessageStartingWith("OCSP request was not successful");
-        assertThat(ex.getStatusCode()).isEqualTo(404);
+        OCSPClientException ocspClientException = assertInstanceOf(OCSPClientException.class, ex.getCause());
+        assertThat(ocspClientException).hasMessageStartingWith("OCSP request was not successful");
+        assertThat(ocspClientException.getStatusCode()).isEqualTo(404);
     }
 
     @Test
@@ -145,6 +149,8 @@ public class OcspCertificateRevocationCheckerTest extends AbstractTestWithValida
         );
         assertThatCode(() ->
             validator.validateCertificateNotRevoked(estEid2018Cert, testEsteid2018CA))
+            .isInstanceOf(UserCertificateOCSPCheckFailedException.class)
+            .cause()
             .isInstanceOf(OCSPClientException.class)
             .cause()
             .isInstanceOf(IOException.class)

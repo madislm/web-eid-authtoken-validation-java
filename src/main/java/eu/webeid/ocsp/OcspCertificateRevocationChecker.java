@@ -22,7 +22,7 @@
 
 package eu.webeid.ocsp;
 
-import eu.webeid.ocsp.client.OcspClient;
+import eu.webeid.ocsp.client.OcspClient;import eu.webeid.ocsp.exceptions.OCSPClientException;
 import eu.webeid.ocsp.protocol.DigestCalculatorImpl;
 import eu.webeid.ocsp.protocol.OcspRequestBuilder;
 import eu.webeid.ocsp.protocol.OcspResponseValidator;
@@ -139,7 +139,7 @@ public class OcspCertificateRevocationChecker implements CertificateRevocationCh
 
             return List.of(new RevocationInfo(ocspResponderUri, Map.of(RevocationInfo.KEY_OCSP_RESPONSE, response)));
 
-        } catch (OCSPException | CertificateException | OperatorCreationException | IOException e) {
+        } catch (OCSPException | CertificateException | OperatorCreationException | IOException | OCSPClientException e) {
             throw new UserCertificateOCSPCheckFailedException(e, ocspResponderUri);
         }
     }

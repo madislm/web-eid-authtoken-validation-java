@@ -48,6 +48,7 @@ class OcspClientOverrideTest extends AbstractTestWithValidator {
     void whenOcspClientIsOverridden_thenItIsUsed() throws JceException, CertificateException, IOException {
         final AuthTokenValidator validator = getAuthTokenValidatorWithOverriddenOcspClient(new OcpClientThatThrows());
         assertThatThrownBy(() -> validator.validate(validAuthToken, VALID_CHALLENGE_NONCE))
+            .cause()
             .isInstanceOf(OcpClientThatThrowsException.class);
     }
 
