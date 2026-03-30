@@ -48,6 +48,7 @@ import java.net.URI;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static eu.webeid.ocsp.OcspCertificateRevocationCheckerTest.getOcspResponseBytesFromResources;
 import static eu.webeid.security.testutil.AbstractTestWithValidator.VALID_AUTH_TOKEN;
@@ -284,7 +285,7 @@ public class ResilientOcspCertificateRevocationCheckerTest {
         OcspService primaryService = mock(OcspService.class);
         when(primaryService.getAccessLocation()).thenReturn(PRIMARY_URI);
         when(primaryService.doesSupportNonce()).thenReturn(false);
-        when(primaryService.getFallbackService()).thenReturn(fallbackService);
+        when(primaryService.getFallbackService()).thenReturn(Optional.of(fallbackService));
 
         OcspServiceProvider ocspServiceProvider = mock(OcspServiceProvider.class);
         when(ocspServiceProvider.getService(any())).thenReturn(primaryService);
@@ -315,7 +316,7 @@ public class ResilientOcspCertificateRevocationCheckerTest {
         OcspService primaryService = mock(OcspService.class);
         when(primaryService.getAccessLocation()).thenReturn(PRIMARY_URI);
         when(primaryService.doesSupportNonce()).thenReturn(false);
-        when(primaryService.getFallbackService()).thenReturn(null);
+        when(primaryService.getFallbackService()).thenReturn(Optional.empty());
 
         OcspServiceProvider ocspServiceProvider = mock(OcspServiceProvider.class);
         when(ocspServiceProvider.getService(any())).thenReturn(primaryService);
@@ -364,7 +365,7 @@ public class ResilientOcspCertificateRevocationCheckerTest {
         OcspService primaryService = mock(OcspService.class);
         when(primaryService.getAccessLocation()).thenReturn(PRIMARY_URI);
         when(primaryService.doesSupportNonce()).thenReturn(false);
-        when(primaryService.getFallbackService()).thenReturn(fallbackService);
+        when(primaryService.getFallbackService()).thenReturn(Optional.of(fallbackService));
 
         OcspServiceProvider ocspServiceProvider = mock(OcspServiceProvider.class);
         when(ocspServiceProvider.getService(any())).thenReturn(primaryService);

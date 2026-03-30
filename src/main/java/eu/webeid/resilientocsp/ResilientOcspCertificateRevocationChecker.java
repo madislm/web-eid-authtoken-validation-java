@@ -62,6 +62,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -105,12 +106,13 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
         OcspService primaryService = resolvePrimaryOcspService(subjectCertificate);
         CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker(primaryService.getAccessLocation().toASCIIString());
 
-        if (primaryService.getFallbackService() == null) {
+        Optional<FallbackOcspService> firstFallbackServiceOpt = primaryService.getFallbackService();
+        if (firstFallbackServiceOpt.isEmpty()) {
             return List.of(request(primaryService, subjectCertificate, issuerCertificate, false));
         }
 
         List<RevocationInfo> revocationInfoList = new ArrayList<>();
-        CheckedSupplier<RevocationInfo> fallbackSupplier = buildFallbackSupplier(primaryService, subjectCertificate,
+        CheckedSupplier<RevocationInfo> fallbackSupplier = buildFallbackSupplier(firstFallbackServiceOpt.get(), subjectCertificate,
             issuerCertificate, revocationInfoList);
         CheckedSupplier<RevocationInfo> decoratedSupplier = decorateWithResilience(primaryService, subjectCertificate,
             issuerCertificate, revocationInfoList, fallbackSupplier, circuitBreaker);
@@ -146,11 +148,10 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
         );
     }
 
-    private CheckedSupplier<RevocationInfo> buildFallbackSupplier(OcspService primaryService,
+    private CheckedSupplier<RevocationInfo> buildFallbackSupplier(FallbackOcspService firstFallbackService,
                                                                   X509Certificate subjectCertificate,
                                                                   X509Certificate issuerCertificate,
                                                                   List<RevocationInfo> revocationInfoList) {
-        final FallbackOcspService firstFallbackService = primaryService.getFallbackService();
         CheckedSupplier<RevocationInfo> firstFallbackSupplier = () -> {
             try {
                 return request(firstFallbackService, subjectCertificate, issuerCertificate, true);
@@ -329,7 +330,7 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
             RevocationInfo revocationInfo = getRevocationInfo(ocspResponderUri, e, request, response, requestDuration, responseTime);
             throw new ResilientUserCertificateRevokedException(new ValidationInfo(subjectCertificate, List.of(revocationInfo)));
         } catch (OCSPClientException e) {
-            RevocationInfo revocationInfo = getRevocationInfo(ocspResponderUri, e, request, response, requestDuration, responseTime);
+            RevocationInfo revocationInfo = getRevocationInfo(ocspResponderUri, e, request, null, null, null);
             revocationInfo.ocspResponseAttributes().put(RevocationInfo.KEY_OCSP_RESPONSE, e.getResponseBody());
             revocationInfo.ocspResponseAttributes().put(RevocationInfo.KEY_HTTP_STATUS_CODE, e.getStatusCode());
             throw new ResilientUserCertificateOCSPCheckFailedException(new ValidationInfo(subjectCertificate, List.of(revocationInfo)));

@@ -38,6 +38,7 @@ import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.Date;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static eu.webeid.ocsp.protocol.IssuerCommonName.getIssuerCommonName;
@@ -77,8 +78,8 @@ public class AiaOcspService implements OcspService {
     }
 
     @Override
-    public FallbackOcspService getFallbackService() {
-        return fallbackOcspService;
+    public Optional<FallbackOcspService> getFallbackService() {
+        return Optional.of(fallbackOcspService);
     }
 
     @Override
