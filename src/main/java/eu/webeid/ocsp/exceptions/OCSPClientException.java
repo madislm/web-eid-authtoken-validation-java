@@ -22,29 +22,34 @@
 
 package eu.webeid.ocsp.exceptions;
 
-public class OCSPClientException extends RuntimeException {
+public class OCSPClientException extends Exception {
 
-    private byte[] responseBody;
+    private final byte[] responseBody;
 
-    private Integer statusCode;
+    private final Integer statusCode;
 
     public OCSPClientException() {
+        this(null, null);
     }
 
     public OCSPClientException(String message) {
-        super(message);
+        this(message, null, null);
     }
 
     public OCSPClientException(Throwable cause) {
-        super(cause);
+        this(null, cause, null, null);
     }
 
     public OCSPClientException(String message, Throwable cause) {
-        super(message, cause);
+        this(message, cause, null, null);
     }
 
-    public OCSPClientException(String message, byte[] responseBody, int statusCode) {
-        super(message);
+    public OCSPClientException(String message, byte[] responseBody, Integer statusCode) {
+        this(message, null, responseBody, statusCode);
+    }
+
+    public OCSPClientException(String message, Throwable cause, byte[] responseBody, Integer statusCode) {
+        super(message, cause);
         this.responseBody = responseBody;
         this.statusCode = statusCode;
     }
