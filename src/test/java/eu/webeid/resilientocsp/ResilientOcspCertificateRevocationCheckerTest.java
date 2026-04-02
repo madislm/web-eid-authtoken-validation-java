@@ -41,11 +41,11 @@ import org.bouncycastle.cert.ocsp.OCSPResp;
 import org.bouncycastle.cert.ocsp.RevokedStatus;
 import org.bouncycastle.cert.ocsp.SingleResp;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -71,6 +71,8 @@ public class ResilientOcspCertificateRevocationCheckerTest {
     private static final URI PRIMARY_URI = URI.create("http://primary.ocsp.test");
     private static final URI FALLBACK_URI = URI.create("http://fallback.ocsp.test");
     private static final URI SECOND_FALLBACK_URI = URI.create("http://second-fallback.ocsp.test");
+
+    private static final Duration LONG_THIS_UPDATE_AGE = Duration.ofDays(365 * 10);
 
     private X509Certificate estEid2018Cert;
     private X509Certificate testEsteid2018CA;
@@ -194,8 +196,6 @@ public class ResilientOcspCertificateRevocationCheckerTest {
     }
 
     @Test
-    @Disabled("Primary supplier has allowThisUpdateInPast disabled and that is checked before revocation, " +
-        "which results in ResilientUserCertificateOCSPCheckFailedException")
     void whenMaxAttemptsIsTwoAndFirstCallFails_thenTwoCallsToPrimaryShouldBeRecorded() throws Exception {
         OcspClient ocspClient = mock(OcspClient.class);
         when(ocspClient.request(eq(PRIMARY_URI), any()))
@@ -226,8 +226,6 @@ public class ResilientOcspCertificateRevocationCheckerTest {
     }
 
     @Test
-    @Disabled("Primary supplier has allowThisUpdateInPast disabled and that is checked before revocation, " +
-        "which results in ResilientUserCertificateOCSPCheckFailedException")
     void whenFirstCallSucceeds_thenRevocationInfoListShouldHaveOneElementAndItShouldHaveGoodStatus() throws Exception {
         OcspClient ocspClient = mock(OcspClient.class);
         when(ocspClient.request(eq(PRIMARY_URI), any()))
@@ -248,8 +246,6 @@ public class ResilientOcspCertificateRevocationCheckerTest {
     }
 
     @Test
-    @Disabled("Primary supplier has allowThisUpdateInPast disabled and that is checked before revocation, " +
-        "which results in ResilientUserCertificateOCSPCheckFailedException")
     void whenFirstCallResultsInRevoked_thenRevocationInfoListShouldHaveOneElementAndItShouldHaveRevokedStatus() throws Exception {
         OcspClient ocspClient = mock(OcspClient.class);
         when(ocspClient.request(eq(PRIMARY_URI), any()))
@@ -297,6 +293,7 @@ public class ResilientOcspCertificateRevocationCheckerTest {
             null,
             OcspCertificateRevocationChecker.DEFAULT_TIME_SKEW,
             OcspCertificateRevocationChecker.DEFAULT_THIS_UPDATE_AGE,
+            LONG_THIS_UPDATE_AGE,
             false
         );
 
@@ -328,6 +325,7 @@ public class ResilientOcspCertificateRevocationCheckerTest {
             null,
             OcspCertificateRevocationChecker.DEFAULT_TIME_SKEW,
             OcspCertificateRevocationChecker.DEFAULT_THIS_UPDATE_AGE,
+            LONG_THIS_UPDATE_AGE,
             false
         );
 
@@ -376,7 +374,8 @@ public class ResilientOcspCertificateRevocationCheckerTest {
             CircuitBreakerConfig.ofDefaults(),
             retryConfig,
             OcspCertificateRevocationChecker.DEFAULT_TIME_SKEW,
-            OcspCertificateRevocationChecker.DEFAULT_THIS_UPDATE_AGE,
+            LONG_THIS_UPDATE_AGE,
+            LONG_THIS_UPDATE_AGE,
             rejectUnknownOcspResponseStatus
         );
     }

@@ -131,7 +131,7 @@ public class OcspCertificateRevocationChecker implements CertificateRevocationCh
             }
             LOG.debug("OCSP response received successfully");
 
-            verifyOcspResponse(basicResponse, ocspService, certificateId, false, false);
+            verifyOcspResponse(basicResponse, ocspService, certificateId, false, maxOcspResponseThisUpdateAge);
             if (ocspService.doesSupportNonce()) {
                 checkNonce(request, basicResponse, ocspResponderUri);
             }
@@ -144,7 +144,7 @@ public class OcspCertificateRevocationChecker implements CertificateRevocationCh
         }
     }
 
-    protected void verifyOcspResponse(BasicOCSPResp basicResponse, OcspService ocspService, CertificateID requestCertificateId, boolean rejectUnknownOcspResponseStatus, boolean allowThisUpdateInPast) throws AuthTokenException, OCSPException, CertificateException, OperatorCreationException {
+    protected void verifyOcspResponse(BasicOCSPResp basicResponse, OcspService ocspService, CertificateID requestCertificateId, boolean rejectUnknownOcspResponseStatus, Duration maxOcspResponseThisUpdateAge) throws AuthTokenException, OCSPException, CertificateException, OperatorCreationException {
         // The verification algorithm follows RFC 2560, https://www.ietf.org/rfc/rfc2560.txt.
         //
         // 3.2.  Signed Response Acceptance Requirements
@@ -195,7 +195,7 @@ public class OcspCertificateRevocationChecker implements CertificateRevocationCh
         //      be available about the status of the certificate (nextUpdate) is
         //      greater than the current time.
 
-        OcspResponseValidator.validateCertificateStatusUpdateTime(certStatusResponse, allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge, ocspService.getAccessLocation(), allowThisUpdateInPast);
+        OcspResponseValidator.validateCertificateStatusUpdateTime(certStatusResponse, allowedOcspResponseTimeSkew, maxOcspResponseThisUpdateAge, ocspService.getAccessLocation());
 
         // Now we can accept the signed response as valid and validate the certificate status.
         OcspResponseValidator.validateSubjectCertificateStatus(certStatusResponse, ocspService.getAccessLocation(), rejectUnknownOcspResponseStatus);
@@ -239,5 +239,9 @@ public class OcspCertificateRevocationChecker implements CertificateRevocationCh
 
     protected OcspServiceProvider getOcspServiceProvider() {
         return ocspServiceProvider;
+    }
+
+    protected Duration getMaxOcspResponseThisUpdateAge() {
+        return maxOcspResponseThisUpdateAge;
     }
 }

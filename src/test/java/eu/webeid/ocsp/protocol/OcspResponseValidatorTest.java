@@ -59,7 +59,7 @@ class OcspResponseValidatorTest {
         var nextUpdateWithinAgeLimit = Date.from(now.minus(THIS_UPDATE_AGE.minusSeconds(2)));
         when(mockResponse.getThisUpdate()).thenReturn(thisUpdateWithinAgeLimit);
         when(mockResponse.getNextUpdate()).thenReturn(nextUpdateWithinAgeLimit);
-        assertThatCode(() -> validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL, false))
+        assertThatCode(() -> validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL))
             .doesNotThrowAnyException();
     }
 
@@ -73,7 +73,7 @@ class OcspResponseValidatorTest {
         when(mockResponse.getNextUpdate()).thenReturn(beforeThisUpdate);
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL, false))
+                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL))
             .withMessageStartingWith("User certificate revocation check has failed: "
                 + "Certificate status update time check failed: "
                 + "nextUpdate '" + beforeThisUpdate.toInstant() + "' is before thisUpdate '" + thisUpdateWithinAgeLimit.toInstant() + "'");
@@ -87,7 +87,7 @@ class OcspResponseValidatorTest {
         when(mockResponse.getThisUpdate()).thenReturn(halfHourBeforeNow);
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL, false))
+                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL))
             .withMessageStartingWith("User certificate revocation check has failed: "
                 + "Certificate status update time check failed: "
                 + "thisUpdate '" + halfHourBeforeNow.toInstant() + "' is too old, minimum time allowed: ");
@@ -101,7 +101,7 @@ class OcspResponseValidatorTest {
         when(mockResponse.getThisUpdate()).thenReturn(halfHourAfterNow);
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL, false))
+                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL))
             .withMessageStartingWith("User certificate revocation check has failed: "
                 + "Certificate status update time check failed: "
                 + "thisUpdate '" + halfHourAfterNow.toInstant() + "' is too far in the future, latest allowed: ");
@@ -117,7 +117,7 @@ class OcspResponseValidatorTest {
         when(mockResponse.getNextUpdate()).thenReturn(halfHourBeforeNow);
         assertThatExceptionOfType(UserCertificateOCSPCheckFailedException.class)
             .isThrownBy(() ->
-                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL, false))
+                validateCertificateStatusUpdateTime(mockResponse, TIME_SKEW, THIS_UPDATE_AGE, OCSP_URL))
             .withMessage("User certificate revocation check has failed: "
                 + "Certificate status update time check failed: "
                 + "nextUpdate '" + halfHourBeforeNow.toInstant() + "' is in the past"
