@@ -28,6 +28,7 @@ import eu.webeid.ocsp.exceptions.OCSPCertificateException;
 import eu.webeid.ocsp.exceptions.UserCertificateOCSPCheckFailedException;
 import eu.webeid.ocsp.protocol.OcspResponseValidator;
 import eu.webeid.security.validator.revocationcheck.RevocationMode;
+import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 
@@ -41,7 +42,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import static eu.webeid.ocsp.protocol.IssuerCommonName.getIssuerCommonName;
+import static eu.webeid.ocsp.protocol.IssuerDistinguishedName.getIssuerDistinguishedName;
 import static eu.webeid.ocsp.protocol.OcspUrl.getOcspUri;
 
 /**
@@ -62,9 +63,9 @@ public class AiaOcspService implements OcspService {
         this.trustedCACertificateCertStore = configuration.getTrustedCACertificateCertStore();
         this.url = getOcspAiaUrlFromCertificate(Objects.requireNonNull(certificate));
         this.fallbackOcspService = fallbackOcspService;
-        String issuerCN = getIssuerCommonName(certificate).orElseThrow(() ->
-            new UserCertificateOCSPCheckFailedException("Getting the issuer common name failed"));
-        this.supportsNonce = !configuration.getNonceDisabledIssuerCNs().contains(issuerCN);
+        X500Name issuerDN = getIssuerDistinguishedName(certificate).orElseThrow(() ->
+            new UserCertificateOCSPCheckFailedException("Getting the issuer distinguished name failed"));
+        this.supportsNonce = !configuration.getNonceDisabledIssuerDNs().contains(issuerDN);
     }
 
     @Override

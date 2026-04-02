@@ -24,6 +24,7 @@ package eu.webeid.ocsp.service;
 
 import eu.webeid.ocsp.exceptions.UserCertificateOCSPCheckFailedException;
 import eu.webeid.security.exceptions.AuthTokenException;
+import org.bouncycastle.asn1.x500.X500Name;
 
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -32,13 +33,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static eu.webeid.ocsp.protocol.IssuerCommonName.getIssuerCommonName;
+import static eu.webeid.ocsp.protocol.IssuerDistinguishedName.getIssuerDistinguishedName;
 
 public class OcspServiceProvider {
 
     private final DesignatedOcspService designatedOcspService;
     private final AiaOcspServiceConfiguration aiaOcspServiceConfiguration;
-    private final Map<String, FallbackOcspService> fallbackOcspServiceMap = new HashMap<>();
+    private final Map<X500Name, FallbackOcspService> fallbackOcspServiceMap = new HashMap<>();
 
     public OcspServiceProvider(DesignatedOcspServiceConfiguration designatedOcspServiceConfiguration, AiaOcspServiceConfiguration aiaOcspServiceConfiguration) {
         this(designatedOcspServiceConfiguration, aiaOcspServiceConfiguration, null);
@@ -51,7 +52,7 @@ public class OcspServiceProvider {
         this.aiaOcspServiceConfiguration = Objects.requireNonNull(aiaOcspServiceConfiguration, "aiaOcspServiceConfiguration");
         if (fallbackOcspServiceConfigurations != null) {
             for (FallbackOcspServiceConfiguration configuration : fallbackOcspServiceConfigurations) {
-                fallbackOcspServiceMap.put(configuration.getIssuerCN(), new FallbackOcspService(configuration));
+                fallbackOcspServiceMap.put(configuration.getIssuerDN(), new FallbackOcspService(configuration));
             }
         }
     }
@@ -69,9 +70,9 @@ public class OcspServiceProvider {
         if (designatedOcspService != null && designatedOcspService.supportsIssuerOf(certificate)) {
             return designatedOcspService;
         }
-        String issuerCommonName = getIssuerCommonName(certificate).orElseThrow(() ->
-            new UserCertificateOCSPCheckFailedException("Getting the issuer common name failed"));
-        FallbackOcspService fallbackOcspService = fallbackOcspServiceMap.get(issuerCommonName);
+        X500Name issuerDistinguishedName = getIssuerDistinguishedName(certificate).orElseThrow(() ->
+            new UserCertificateOCSPCheckFailedException("Getting the issuer distinguished name failed"));
+        FallbackOcspService fallbackOcspService = fallbackOcspServiceMap.get(issuerDistinguishedName);
         return new AiaOcspService(aiaOcspServiceConfiguration, certificate, fallbackOcspService);
     }
 }

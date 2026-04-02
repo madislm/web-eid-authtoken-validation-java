@@ -24,6 +24,7 @@ package eu.webeid.ocsp.service;
 
 import eu.webeid.ocsp.exceptions.OCSPCertificateException;
 import eu.webeid.ocsp.protocol.OcspResponseValidator;
+import org.bouncycastle.asn1.x500.X500Name;
 
 import java.net.URI;
 import java.security.cert.CertStore;
@@ -38,14 +39,14 @@ public class FallbackOcspServiceConfiguration {
     private final X509Certificate responderCertificate;
     private final boolean doesSupportNonce;
     private final FallbackOcspServiceConfiguration nextFallbackConfiguration;
-    private final String issuerCN;
+    private final X500Name issuerDN;
     private final Set<TrustAnchor> trustedCACertificateAnchors;
     private final CertStore trustedCACertificateCertStore;
 
     public FallbackOcspServiceConfiguration(URI accessLocation, X509Certificate responderCertificate,
                                             boolean doesSupportNonce,
                                             FallbackOcspServiceConfiguration nextFallbackConfiguration,
-                                            String issuerCN, Set<TrustAnchor> trustedCACertificateAnchors,
+                                            X500Name issuerDN, Set<TrustAnchor> trustedCACertificateAnchors,
                                             CertStore trustedCACertificateCertStore) throws OCSPCertificateException {
         this.accessLocation = Objects.requireNonNull(accessLocation, "Fallback OCSP service access location");
         this.responderCertificate = responderCertificate;
@@ -54,7 +55,7 @@ public class FallbackOcspServiceConfiguration {
         }
         this.doesSupportNonce = doesSupportNonce;
         this.nextFallbackConfiguration = nextFallbackConfiguration;
-        this.issuerCN = issuerCN;
+        this.issuerDN = issuerDN;
         this.trustedCACertificateAnchors = Objects.requireNonNull(trustedCACertificateAnchors);
         this.trustedCACertificateCertStore = Objects.requireNonNull(trustedCACertificateCertStore);
     }
@@ -75,8 +76,8 @@ public class FallbackOcspServiceConfiguration {
         return nextFallbackConfiguration;
     }
 
-    public String getIssuerCN() {
-        return issuerCN;
+    public X500Name getIssuerDN() {
+        return issuerDN;
     }
 
     public Set<TrustAnchor> getTrustedCACertificateAnchors() {
