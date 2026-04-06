@@ -280,9 +280,18 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
 
             LOG.debug("Sending OCSP request");
             Instant requestTime = Instant.now();
-            response = requireNonNull(getOcspClient().request(ocspResponderUri, request)); // TODO: This should trigger fallback?
-            responseTime = Instant.now();
-            requestDuration = Duration.between(requestTime, responseTime);
+            try {
+                response = requireNonNull(getOcspClient().request(ocspResponderUri, request));
+                responseTime = Instant.now();
+                requestDuration = Duration.between(requestTime, responseTime);
+            } catch (OCSPClientException e) {
+                responseTime = Instant.now();
+                requestDuration = Duration.between(requestTime, responseTime);
+                RevocationInfo revocationInfo = getRevocationInfo(ocspResponderUri, e, request, null, requestDuration, responseTime);
+                revocationInfo.ocspResponseAttributes().put(RevocationInfo.KEY_OCSP_RESPONSE, e.getResponseBody());
+                revocationInfo.ocspResponseAttributes().put(RevocationInfo.KEY_HTTP_STATUS_CODE, e.getStatusCode());
+                throw new ResilientUserCertificateOCSPCheckFailedException(new ValidationInfo(subjectCertificate, List.of(revocationInfo)));
+            }
             if (response.getStatus() != OCSPResponseStatus.SUCCESSFUL) {
                 ResilientUserCertificateOCSPCheckFailedException exception = new ResilientUserCertificateOCSPCheckFailedException("Response status: " + ocspStatusToString(response.getStatus()));
                 RevocationInfo revocationInfo = new RevocationInfo(ocspService.getAccessLocation(), new HashMap<>(Map.ofEntries(
@@ -333,12 +342,10 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
             // (a definitive OCSP answer, not a transient failure) and no fallback is attempted.
             RevocationInfo revocationInfo = getRevocationInfo(ocspResponderUri, e, request, response, requestDuration, responseTime);
             throw new ResilientUserCertificateRevokedException(new ValidationInfo(subjectCertificate, List.of(revocationInfo)));
-        } catch (OCSPClientException e) {
-            RevocationInfo revocationInfo = getRevocationInfo(ocspResponderUri, e, request, null, null, null);
-            revocationInfo.ocspResponseAttributes().put(RevocationInfo.KEY_OCSP_RESPONSE, e.getResponseBody());
-            revocationInfo.ocspResponseAttributes().put(RevocationInfo.KEY_HTTP_STATUS_CODE, e.getStatusCode());
-            throw new ResilientUserCertificateOCSPCheckFailedException(new ValidationInfo(subjectCertificate, List.of(revocationInfo)));
         } catch (Exception e) {
+            if (e instanceof ResilientUserCertificateOCSPCheckFailedException exception) {
+                throw exception;
+            }
             RevocationInfo revocationInfo = getRevocationInfo(ocspResponderUri, e, request, response, requestDuration, responseTime);
             throw new ResilientUserCertificateOCSPCheckFailedException(new ValidationInfo(subjectCertificate, List.of(revocationInfo)));
         }
