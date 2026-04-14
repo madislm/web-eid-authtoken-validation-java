@@ -36,7 +36,7 @@ import java.util.Set;
 
 import static eu.webeid.security.testutil.Certificates.getTestEsteid2015CA;
 import static eu.webeid.security.testutil.Certificates.getTestEsteid2018CA;
-import static eu.webeid.security.testutil.Certificates.getTestSkOcspResponder2020;
+import static eu.webeid.security.testutil.Certificates.getTestSelfSignedOcspResponder;
 
 public class OcspServiceMaker {
 
@@ -86,7 +86,7 @@ public class OcspServiceMaker {
     private static DesignatedOcspServiceConfiguration getDesignatedOcspServiceConfiguration(boolean doesSupportNonce, String ocspServiceAccessLocation) throws CertificateException, IOException, OCSPCertificateException {
         return new DesignatedOcspServiceConfiguration(
             URI.create(ocspServiceAccessLocation),
-            getTestSkOcspResponder2020(),
+            getTestSelfSignedOcspResponder(),
             TRUSTED_CA_CERTIFICATES,
             doesSupportNonce);
     }
