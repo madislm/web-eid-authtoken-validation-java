@@ -49,4 +49,8 @@ public class UserCertificateOCSPCheckFailedException extends AuthTokenException 
         super(message);
     }
 
+    public UserCertificateOCSPCheckFailedException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
 }
