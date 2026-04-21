@@ -152,7 +152,7 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
             currentChallengeNonce
         );
 
-        // Trust and revocation validation is the last step to ensure that all non-OCSP checks
+        // Revocation validation is the last step to ensure that all non-network checks
         // are completed before any OCSP requests are made.
         final List<RevocationInfo> revocationInfoList = CertificateValidator.validateCertificateTrustAndRevocation(
                 subjectCertificate,
