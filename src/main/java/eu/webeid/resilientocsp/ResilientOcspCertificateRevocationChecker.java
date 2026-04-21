@@ -26,6 +26,7 @@ import eu.webeid.ocsp.OcspCertificateRevocationChecker;
 import eu.webeid.ocsp.client.OcspClient;
 import eu.webeid.ocsp.exceptions.OCSPClientException;
 import eu.webeid.ocsp.exceptions.UserCertificateOCSPCheckFailedException;
+import eu.webeid.ocsp.exceptions.UserCertificateOCSPException;
 import eu.webeid.ocsp.exceptions.UserCertificateRevokedException;
 import eu.webeid.ocsp.protocol.OcspRequestBuilder;
 import eu.webeid.ocsp.service.FallbackOcspService;
@@ -123,7 +124,7 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
         try {
             certificateId = getCertificateId(subjectCertificate, issuerCertificate);
         } catch (CertificateEncodingException | IOException | OCSPException e) {
-            throw new UserCertificateOCSPCheckFailedException("Unable to compute certificateId for subject certificate", e);
+            throw new UserCertificateOCSPException("Unable to compute certificateId for subject certificate", e);
         }
 
         Optional<FallbackOcspService> firstFallbackServiceOpt = primaryService.getFallbackService();
@@ -150,7 +151,7 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
         try {
             return getOcspServiceProvider().getService(subjectCertificate);
         } catch (CertificateException e) {
-            throw new UserCertificateOCSPCheckFailedException("Resolving primary OCSP service from subject certificate failed", e);
+            throw new UserCertificateOCSPException("Resolving primary OCSP service from subject certificate failed", e);
         }
     }
 
@@ -280,7 +281,7 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
         ))));
     }
 
-    private RevocationInfo request(OcspService ocspService, X509Certificate subjectCertificate, CertificateID certificateId, Duration maxOcspResponseThisUpdateAge) throws UserCertificateOCSPCheckFailedException, ResilientUserCertificateRevokedException {
+    private RevocationInfo request(OcspService ocspService, X509Certificate subjectCertificate, CertificateID certificateId, Duration maxOcspResponseThisUpdateAge) throws UserCertificateOCSPCheckFailedException, ResilientUserCertificateRevokedException, UserCertificateOCSPException {
         final URI ocspResponderUri;
         final OCSPReq request;
         try {
@@ -290,7 +291,7 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
                 .enableOcspNonce(ocspService.doesSupportNonce())
                 .build();
         } catch (Exception e) {
-            throw new UserCertificateOCSPCheckFailedException(e, ocspService.getAccessLocation());
+            throw new UserCertificateOCSPException("Unable to create OCSP request", e);
         }
 
         if (!ocspService.doesSupportNonce()) {
