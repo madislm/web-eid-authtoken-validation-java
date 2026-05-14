@@ -302,8 +302,12 @@ The following additional configuration options are available in `AuthTokenValida
 - `withOcspRequestTimeout(Duration ocspRequestTimeout)` – sets both the connection and response timeout of user certificate revocation check OCSP requests. Default is 5 seconds.
 - `withDisallowedCertificatePolicies(ASN1ObjectIdentifier... policies)` – adds the given policies to the list of disallowed user certificate policies. In order for the user certificate to be considered valid, it must not contain any policies present in this list. Contains the Estonian Mobile-ID policies by default as it must not be possible to authenticate with a Mobile-ID certificate when an eID smart card is expected.
 - `withNonceDisabledOcspUrls(URI... urls)` – adds the given URLs to the list of OCSP responder access location URLs for which the nonce protocol extension will be disabled. Some OCSP responders don't support the nonce extension.
-- `withAllowedOcspResponseTimeSkew(Duration allowedTimeSkew)` – sets the allowed time skew for OCSP response's `thisUpdate` and `nextUpdate` times to allow discrepancies between the system clock and the OCSP responder's clock or revocation updates that are not published in real time. The default allowed time skew is 15 minutes. The relatively long default is specifically chosen to account for one particular OCSP responder that used CRLs for authoritative revocation info, these CRLs were updated every 15 minutes.
-- `withMaxOcspResponseThisUpdateAge(Duration maxThisUpdateAge)` – sets the maximum age for the OCSP response's `thisUpdate` time before it is considered too old to rely on. The default maximum age is 2 minutes.
+- `withAllowedOcspResponseTimeSkew(Duration allowedTimeSkew)` – sets the allowed time skew for the OCSP response's `thisUpdate` time to allow discrepancies between the system clock and the OCSP responder's clock or revocation updates that are not published in real time. The default allowed time skew is 15 minutes. The relatively long default is specifically chosen to account for one particular OCSP responder that used CRLs for authoritative revocation info, these CRLs were updated every 15 minutes.
+
+The maximum ages of the OCSP response's `thisUpdate` and `nextUpdate` times are configured per OCSP service via the constructor of  `AiaOcspServiceConfiguration`, `DesignatedOcspServiceConfiguration` or `FallbackOcspServiceConfiguration`:
+
+- `maxThisUpdateAge` – the maximum age of the OCSP response's `thisUpdate` time before the response is too old to rely on. `OcspCertificateRevocationChecker.DEFAULT_THIS_UPDATE_AGE` is 2 minutes.
+- `maxNextUpdateAge` – the maximum age of the OCSP response's `nextUpdate` time before the response is too old to rely on. `OcspCertificateRevocationChecker.DEFAULT_NEXT_UPDATE_AGE` is 15 minutes, which is equal to the default allowed time skew.
 
 Extended configuration example:  
 
@@ -315,7 +319,6 @@ AuthTokenValidator validator = new AuthTokenValidatorBuilder()
     .withDisallowedCertificatePolicies(new ASN1ObjectIdentifier("1.2.3"))
     .withNonceDisabledOcspUrls(URI.create("http://aia.example.org/cert"))
     .withAllowedOcspResponseTimeSkew(Duration.ofMinutes(10))
-    .withMaxOcspResponseThisUpdateAge(Duration.ofMinutes(5))
     .build();
 ```
 
