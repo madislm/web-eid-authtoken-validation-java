@@ -34,7 +34,9 @@ import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.cert.ocsp.BasicOCSPResp;
+import org.bouncycastle.cert.ocsp.CertificateStatus;
 import org.bouncycastle.cert.ocsp.OCSPResp;
+import org.bouncycastle.cert.ocsp.RevokedStatus;
 import org.bouncycastle.cert.ocsp.SingleResp;
 import org.junit.jupiter.api.Test;
 
@@ -45,8 +47,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 
-import static eu.webeid.ocsp.OcspCertificateRevocationCheckerTest.getOcspResponseBytesFromResources;
 import static eu.webeid.ocsp.protocol.OcspResponseValidator.validateBasicConstraintsNotCA;
+import static eu.webeid.security.testutil.ResourceUtil.bytesFromResource;
 import static eu.webeid.ocsp.protocol.OcspResponseValidator.validateCertificateStatusUpdateTime;
 import static eu.webeid.ocsp.protocol.OcspResponseValidator.validateExtendedKeyUsageOcspSigning;
 import static eu.webeid.ocsp.protocol.OcspResponseValidator.validateKeyUsageDigitalSignature;
@@ -139,7 +141,7 @@ class OcspResponseValidatorTest {
     }
 
     @Test
-    void whenRejectUnknownOcspResponseStatusIsFalse_ThenUnknownStatusThrowsUserCertificateRevokedException() throws Exception {
+    void whenRejectUnknownOcspResponseStatusIsFalse_thenThrowsUserCertificateRevokedException() throws Exception {
         SingleResp unknownCertStatus = getUnknownCertStatusResponse();
         assertThatExceptionOfType(UserCertificateRevokedException.class)
             .isThrownBy(() ->
@@ -148,7 +150,7 @@ class OcspResponseValidatorTest {
     }
 
     @Test
-    void whenRejectUnknownOcspResponseStatusIsTrue_ThenUnknownStatusThrowsUserCertificateUnknownException() throws Exception {
+    void whenRejectUnknownOcspResponseStatusIsTrue_thenThrowsUserCertificateUnknownException() throws Exception {
         SingleResp unknownCertStatus = getUnknownCertStatusResponse();
         assertThatExceptionOfType(UserCertificateUnknownException.class)
             .isThrownBy(() ->
@@ -308,14 +310,47 @@ class OcspResponseValidatorTest {
             .withMessage("certificate");
     }
 
+    @Test
+    void whenRevokedStatusHasNoReason_thenThrows() {
+        final SingleResp mockResponse = mock(SingleResp.class);
+        when(mockResponse.getCertStatus()).thenReturn(new RevokedStatus(new Date()));
+        assertThatExceptionOfType(UserCertificateRevokedException.class)
+            .isThrownBy(() ->
+                validateSubjectCertificateStatus(mockResponse, OCSP_URL, false))
+            .withMessage("User certificate has been revoked (OCSP responder: https://example.org)");
+    }
+
+    @Test
+    void whenStatusIsNeitherGoodRevokedNorUnknownAndRejectIsFalse_thenThrowsUserCertificateRevokedException() {
+        final SingleResp mockResponse = mock(SingleResp.class);
+        when(mockResponse.getCertStatus()).thenReturn(new UnexpectedCertificateStatus());
+        assertThatExceptionOfType(UserCertificateRevokedException.class)
+            .isThrownBy(() ->
+                validateSubjectCertificateStatus(mockResponse, OCSP_URL, false))
+            .withMessage("User certificate has been revoked: Status is neither good, revoked nor unknown (OCSP responder: https://example.org)");
+    }
+
+    @Test
+    void whenStatusIsNeitherGoodRevokedNorUnknownAndRejectIsTrue_thenThrowsUserCertificateUnknownException() {
+        final SingleResp mockResponse = mock(SingleResp.class);
+        when(mockResponse.getCertStatus()).thenReturn(new UnexpectedCertificateStatus());
+        assertThatExceptionOfType(UserCertificateUnknownException.class)
+            .isThrownBy(() ->
+                validateSubjectCertificateStatus(mockResponse, OCSP_URL, true))
+            .withMessage("User certificate status is unknown: Status is neither good, revoked nor unknown (OCSP responder: https://example.org)");
+    }
+
     private static Date getThisUpdateWithinAgeLimit(Instant now) {
         return Date.from(now.minus(THIS_UPDATE_AGE.minusSeconds(1)));
     }
 
     private static SingleResp getUnknownCertStatusResponse() throws Exception {
-        final OCSPResp ocspRespUnknown = new OCSPResp(getOcspResponseBytesFromResources("ocsp_response_unknown.der"));
+        final OCSPResp ocspRespUnknown = new OCSPResp(bytesFromResource("ocsp_response_unknown.der"));
         final BasicOCSPResp basicResponse = (BasicOCSPResp) ocspRespUnknown.getResponseObject();
         return basicResponse.getResponses()[0];
+    }
+
+    private static class UnexpectedCertificateStatus implements CertificateStatus {
     }
 
 }
