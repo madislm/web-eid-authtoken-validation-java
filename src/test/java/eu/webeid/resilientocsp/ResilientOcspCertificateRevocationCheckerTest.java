@@ -31,6 +31,7 @@ import eu.webeid.resilientocsp.exceptions.ResilientUserCertificateOCSPCheckFaile
 import eu.webeid.resilientocsp.exceptions.ResilientUserCertificateRevokedException;
 import eu.webeid.ocsp.service.FallbackOcspService;
 import eu.webeid.security.authtoken.WebEidAuthToken;
+import eu.webeid.security.util.DateAndTime;
 import eu.webeid.security.validator.AuthTokenValidator;
 import eu.webeid.security.validator.revocationcheck.RevocationInfo;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
@@ -42,6 +43,7 @@ import org.bouncycastle.cert.ocsp.RevokedStatus;
 import org.bouncycastle.cert.ocsp.SingleResp;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.net.URI;
 import java.security.cert.X509Certificate;
@@ -54,6 +56,7 @@ import static eu.webeid.ocsp.OcspCertificateRevocationCheckerTest.getOcspRespons
 import static eu.webeid.security.testutil.AbstractTestWithValidator.VALID_AUTH_TOKEN;
 import static eu.webeid.security.testutil.AbstractTestWithValidator.VALID_CHALLENGE_NONCE;
 import static eu.webeid.security.testutil.AuthTokenValidators.getDefaultAuthTokenValidatorBuilder;
+import static eu.webeid.security.testutil.DateMocker.mockDate;
 import static eu.webeid.security.testutil.Certificates.getJaakKristjanEsteid2018Cert;
 import static eu.webeid.security.testutil.Certificates.getTestEsteid2018CA;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,6 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -106,36 +110,41 @@ public class ResilientOcspCertificateRevocationCheckerTest {
             .build();
         WebEidAuthToken authToken = validator.parse(VALID_AUTH_TOKEN);
 
-        ResilientUserCertificateOCSPCheckFailedException ex1 = assertThrows(ResilientUserCertificateOCSPCheckFailedException.class,
-            () -> validator.validate(authToken, VALID_CHALLENGE_NONCE));
-        List<RevocationInfo> revocationInfo1 = ex1.getValidationInfo().revocationInfoList();
-        assertThat(revocationInfo1).hasSize(3);
-        assertThat(revocationInfo1)
-            .extracting(ri -> ((OCSPClientException) ri.ocspResponseAttributes().get("OCSP_ERROR")).getMessage())
-            .containsExactly(
-                "Primary OCSP service unavailable (call1)",
-                "Fallback OCSP service unavailable (call1)",
-                "Secondary fallback OCSP service unavailable (call1)"
-            );
-        ResilientUserCertificateOCSPCheckFailedException ex2 = assertThrows(ResilientUserCertificateOCSPCheckFailedException.class,
-            () -> validator.validate(authToken, VALID_CHALLENGE_NONCE));
-        List<RevocationInfo> revocationInfo2 = ex2.getValidationInfo().revocationInfoList();
-        assertThat(revocationInfo2).hasSize(3);
-        assertThat(revocationInfo2)
-            .extracting(ri -> ((OCSPClientException) ri.ocspResponseAttributes().get("OCSP_ERROR")).getMessage())
-            .containsExactly(
-                "Primary OCSP service unavailable (call2)",
-                "Fallback OCSP service unavailable (call2)",
-                "Secondary fallback OCSP service unavailable (call2)"
-            );
-        assertThat(revocationInfo1).hasSize(3);
-        assertThat(revocationInfo1)
-            .extracting(ri -> ((OCSPClientException) ri.ocspResponseAttributes().get("OCSP_ERROR")).getMessage())
-            .containsExactly(
-                "Primary OCSP service unavailable (call1)",
-                "Fallback OCSP service unavailable (call1)",
-                "Secondary fallback OCSP service unavailable (call1)"
-            );
+        // Ensure that the certificates do not expire.
+        try (final MockedStatic<DateAndTime.DefaultClock> mockedClock = mockStatic(DateAndTime.DefaultClock.class)) {
+            mockDate("2021-07-23", mockedClock);
+
+            ResilientUserCertificateOCSPCheckFailedException ex1 = assertThrows(ResilientUserCertificateOCSPCheckFailedException.class,
+                () -> validator.validate(authToken, VALID_CHALLENGE_NONCE));
+            List<RevocationInfo> revocationInfo1 = ex1.getValidationInfo().revocationInfoList();
+            assertThat(revocationInfo1).hasSize(3);
+            assertThat(revocationInfo1)
+                .extracting(ri -> ((OCSPClientException) ri.ocspResponseAttributes().get("OCSP_ERROR")).getMessage())
+                .containsExactly(
+                    "Primary OCSP service unavailable (call1)",
+                    "Fallback OCSP service unavailable (call1)",
+                    "Secondary fallback OCSP service unavailable (call1)"
+                );
+            ResilientUserCertificateOCSPCheckFailedException ex2 = assertThrows(ResilientUserCertificateOCSPCheckFailedException.class,
+                () -> validator.validate(authToken, VALID_CHALLENGE_NONCE));
+            List<RevocationInfo> revocationInfo2 = ex2.getValidationInfo().revocationInfoList();
+            assertThat(revocationInfo2).hasSize(3);
+            assertThat(revocationInfo2)
+                .extracting(ri -> ((OCSPClientException) ri.ocspResponseAttributes().get("OCSP_ERROR")).getMessage())
+                .containsExactly(
+                    "Primary OCSP service unavailable (call2)",
+                    "Fallback OCSP service unavailable (call2)",
+                    "Secondary fallback OCSP service unavailable (call2)"
+                );
+            assertThat(revocationInfo1).hasSize(3);
+            assertThat(revocationInfo1)
+                .extracting(ri -> ((OCSPClientException) ri.ocspResponseAttributes().get("OCSP_ERROR")).getMessage())
+                .containsExactly(
+                    "Primary OCSP service unavailable (call1)",
+                    "Fallback OCSP service unavailable (call1)",
+                    "Secondary fallback OCSP service unavailable (call1)"
+                );
+        }
     }
 
     @Test

@@ -84,6 +84,8 @@ public class OcspCertificateRevocationCheckerTest extends AbstractTestWithValida
     }
 
     @Test
+    @Disabled("The test user certificate has expired, but mocking the date to keep it valid is not possible here, "
+        + "as the live OCSP responder returns a response with thisUpdate at the real current time")
     void whenValidDefaultConfiguration_thenSucceeds() throws Exception {
         final AuthTokenValidator validator = getAuthTokenValidatorWithOcspCertificateRevocationChecker();
         assertThatCode(() -> validator.validate(validAuthToken, VALID_CHALLENGE_NONCE))
