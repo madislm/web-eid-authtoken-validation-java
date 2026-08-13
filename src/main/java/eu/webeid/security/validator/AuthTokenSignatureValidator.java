@@ -25,6 +25,7 @@ import eu.webeid.security.exceptions.AuthTokenException;
 import eu.webeid.security.exceptions.AuthTokenParseException;
 import eu.webeid.security.exceptions.AuthTokenSignatureValidationException;
 import eu.webeid.security.exceptions.ChallengeNullOrEmptyException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.impl.security.DefaultVerifySecureDigestRequest;
 import io.jsonwebtoken.security.SignatureAlgorithm;
@@ -100,7 +101,13 @@ public class AuthTokenSignatureValidator {
                 new ByteArrayInputStream(concatSignedFields),
                 null, null,
                 publicKey, decodedSignature);
-        if (!signatureAlgorithm.verify(verificationRequest)) {
+        final boolean signatureIsValid;
+        try {
+            signatureIsValid = signatureAlgorithm.verify(verificationRequest);
+        } catch (JwtException e) {
+            throw new AuthTokenSignatureValidationException(e);
+        }
+        if (!signatureIsValid) {
             throw new AuthTokenSignatureValidationException();
         }
     }
