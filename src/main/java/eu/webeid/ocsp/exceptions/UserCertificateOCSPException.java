@@ -20,30 +20,18 @@
  * SOFTWARE.
  */
 
-package eu.webeid.ocsp.service;
+package eu.webeid.ocsp.exceptions;
 
-import org.bouncycastle.cert.X509CertificateHolder;
 import eu.webeid.security.exceptions.AuthTokenException;
 
-import java.net.URI;
-import java.time.Duration;
-import java.util.Date;
-import java.util.Optional;
+public class UserCertificateOCSPException extends AuthTokenException {
 
-public interface OcspService {
+    public UserCertificateOCSPException(String message) {
+        super(message);
+    }
 
-    boolean doesSupportNonce();
-
-    URI getAccessLocation();
-
-    Duration getMaxThisUpdateAge();
-
-    Duration getMaxNextUpdateAge();
-
-    void validateResponderCertificate(X509CertificateHolder cert, Date now) throws AuthTokenException;
-
-    default Optional<FallbackOcspService> getFallbackService() {
-        return Optional.empty();
+    public UserCertificateOCSPException(String message, Throwable exception) {
+        super(message, exception);
     }
 
 }

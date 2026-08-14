@@ -20,30 +20,21 @@
  * SOFTWARE.
  */
 
-package eu.webeid.ocsp.service;
+package eu.webeid.security.testutil;
 
-import org.bouncycastle.cert.X509CertificateHolder;
-import eu.webeid.security.exceptions.AuthTokenException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Objects;
 
-import java.net.URI;
-import java.time.Duration;
-import java.util.Date;
-import java.util.Optional;
+public final class ResourceUtil {
 
-public interface OcspService {
-
-    boolean doesSupportNonce();
-
-    URI getAccessLocation();
-
-    Duration getMaxThisUpdateAge();
-
-    Duration getMaxNextUpdateAge();
-
-    void validateResponderCertificate(X509CertificateHolder cert, Date now) throws AuthTokenException;
-
-    default Optional<FallbackOcspService> getFallbackService() {
-        return Optional.empty();
+    private ResourceUtil() {
     }
 
+    public static byte[] bytesFromResource(String resource) throws IOException {
+        try (final InputStream resourceAsStream = ClassLoader.getSystemResourceAsStream(resource)) {
+            Objects.requireNonNull(resourceAsStream, () -> "Resource not found: " + resource);
+            return resourceAsStream.readAllBytes();
+        }
+    }
 }

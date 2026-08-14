@@ -30,8 +30,11 @@ import java.net.URI;
 import java.security.cert.CertStore;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.Set;
+
+import static eu.webeid.security.util.DateAndTime.requirePositiveDuration;
 
 public class FallbackOcspServiceConfiguration {
 
@@ -42,22 +45,30 @@ public class FallbackOcspServiceConfiguration {
     private final X500Name issuerDN;
     private final Set<TrustAnchor> trustedCACertificateAnchors;
     private final CertStore trustedCACertificateCertStore;
+    private final Duration maxThisUpdateAge;
+    private final Duration maxNextUpdateAge;
 
     public FallbackOcspServiceConfiguration(URI accessLocation, X509Certificate responderCertificate,
                                             boolean doesSupportNonce,
                                             FallbackOcspServiceConfiguration nextFallbackConfiguration,
                                             X500Name issuerDN, Set<TrustAnchor> trustedCACertificateAnchors,
-                                            CertStore trustedCACertificateCertStore) throws OCSPCertificateException {
+                                            CertStore trustedCACertificateCertStore,
+                                            Duration maxThisUpdateAge, Duration maxNextUpdateAge) throws OCSPCertificateException {
         this.accessLocation = Objects.requireNonNull(accessLocation, "Fallback OCSP service access location");
         this.responderCertificate = responderCertificate;
         if (responderCertificate != null) {
-            OcspResponseValidator.validateHasSigningExtension(responderCertificate);
+            OcspResponseValidator.validateBasicConstraintsNotCA(responderCertificate);
+            OcspResponseValidator.validateKeyUsageDigitalSignature(responderCertificate);
+            OcspResponseValidator.validateKeyUsageNotCertificateSigning(responderCertificate);
+            OcspResponseValidator.validateExtendedKeyUsageOcspSigning(responderCertificate);
         }
         this.doesSupportNonce = doesSupportNonce;
         this.nextFallbackConfiguration = nextFallbackConfiguration;
         this.issuerDN = Objects.requireNonNull(issuerDN, "issuerDN");
         this.trustedCACertificateAnchors = Objects.requireNonNull(trustedCACertificateAnchors, "trustedCACertificateAnchors");
         this.trustedCACertificateCertStore = Objects.requireNonNull(trustedCACertificateCertStore, "trustedCACertificateCertStore");
+        this.maxThisUpdateAge = requirePositiveDuration(maxThisUpdateAge, "maxThisUpdateAge");
+        this.maxNextUpdateAge = requirePositiveDuration(maxNextUpdateAge, "maxNextUpdateAge");
     }
 
     public URI getAccessLocation() {
@@ -86,5 +97,13 @@ public class FallbackOcspServiceConfiguration {
 
     public CertStore getTrustedCACertificateCertStore() {
         return trustedCACertificateCertStore;
+    }
+
+    public Duration getMaxThisUpdateAge() {
+        return maxThisUpdateAge;
+    }
+
+    public Duration getMaxNextUpdateAge() {
+        return maxNextUpdateAge;
     }
 }

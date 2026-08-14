@@ -144,6 +144,16 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
         // Use the clock instance so that the date can be mocked in tests.
         final Date now = DateAndTime.DefaultClock.getInstance().now();
 
+        // It is guaranteed that if the signature verification succeeds, then the origin and challenge
+        // have been implicitly and correctly verified without the need to implement any additional checks.
+        authTokenSignatureValidator.validate(token.algorithm(),
+            token.signature(),
+            subjectCertificate.getPublicKey(),
+            currentChallengeNonce
+        );
+
+        // Revocation validation is the last step to ensure that all non-network checks
+        // are completed before any OCSP requests are made.
         final List<RevocationInfo> revocationInfoList = CertificateValidator.validateCertificateTrustAndRevocation(
                 subjectCertificate,
                 trustedCACertificateAnchors,
@@ -154,14 +164,6 @@ final class AuthTokenValidatorImpl implements AuthTokenValidator {
                 configuration.getPkixRevocationChecker()
         );
         LOG.debug("Subject certificate is valid and signed by a trusted CA");
-
-        // It is guaranteed that if the signature verification succeeds, then the origin and challenge
-        // have been implicitly and correctly verified without the need to implement any additional checks.
-        authTokenSignatureValidator.validate(token.algorithm(),
-            token.signature(),
-            subjectCertificate.getPublicKey(),
-            currentChallengeNonce
-        );
 
         return new ValidationInfo(subjectCertificate, revocationInfoList);
     }

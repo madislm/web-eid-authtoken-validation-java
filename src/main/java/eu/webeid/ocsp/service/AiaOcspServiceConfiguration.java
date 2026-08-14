@@ -26,20 +26,27 @@ import org.bouncycastle.asn1.x500.X500Name;
 
 import java.security.cert.CertStore;
 import java.security.cert.TrustAnchor;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
+
+import static eu.webeid.security.util.DateAndTime.requirePositiveDuration;
 
 public class AiaOcspServiceConfiguration {
 
     private final Collection<X500Name> nonceDisabledIssuerDNs;
     private final Set<TrustAnchor> trustedCACertificateAnchors;
     private final CertStore trustedCACertificateCertStore;
+    private final Duration maxThisUpdateAge;
+    private final Duration maxNextUpdateAge;
 
-    public AiaOcspServiceConfiguration(Collection<X500Name> nonceDisabledIssuerDNs, Set<TrustAnchor> trustedCACertificateAnchors, CertStore trustedCACertificateCertStore) {
+    public AiaOcspServiceConfiguration(Collection<X500Name> nonceDisabledIssuerDNs, Set<TrustAnchor> trustedCACertificateAnchors, CertStore trustedCACertificateCertStore, Duration maxThisUpdateAge, Duration maxNextUpdateAge) {
         this.nonceDisabledIssuerDNs = Objects.requireNonNull(nonceDisabledIssuerDNs);
         this.trustedCACertificateAnchors = Objects.requireNonNull(trustedCACertificateAnchors);
         this.trustedCACertificateCertStore = Objects.requireNonNull(trustedCACertificateCertStore);
+        this.maxThisUpdateAge = requirePositiveDuration(maxThisUpdateAge, "maxThisUpdateAge");
+        this.maxNextUpdateAge = requirePositiveDuration(maxNextUpdateAge, "maxNextUpdateAge");
     }
 
     public Collection<X500Name> getNonceDisabledIssuerDNs() {
@@ -54,4 +61,11 @@ public class AiaOcspServiceConfiguration {
         return trustedCACertificateCertStore;
     }
 
+    public Duration getMaxThisUpdateAge() {
+        return maxThisUpdateAge;
+    }
+
+    public Duration getMaxNextUpdateAge() {
+        return maxNextUpdateAge;
+    }
 }

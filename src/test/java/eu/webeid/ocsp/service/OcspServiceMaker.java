@@ -31,14 +31,18 @@ import java.io.IOException;
 import java.net.URI;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 
 import static eu.webeid.security.testutil.Certificates.getTestEsteid2015CA;
 import static eu.webeid.security.testutil.Certificates.getTestEsteid2018CA;
-import static eu.webeid.security.testutil.Certificates.getTestSkOcspResponder2020;
+import static eu.webeid.security.testutil.Certificates.getTestSelfSignedOcspResponder;
 
 public class OcspServiceMaker {
+
+    public static final Duration MAX_THIS_UPDATE_AGE = Duration.ofMinutes(3);
+    public static final Duration MAX_NEXT_UPDATE_AGE = Duration.ofMinutes(20);
 
     private static final String TEST_OCSP_ACCESS_LOCATION = "http://demo.sk.ee/ocsp";
     private static final List<X509Certificate> TRUSTED_CA_CERTIFICATES;
@@ -72,7 +76,9 @@ public class OcspServiceMaker {
         return new AiaOcspServiceConfiguration(
             Set.of(ISSUER_DN),
             CertificateValidator.buildTrustAnchorsFromCertificates(TRUSTED_CA_CERTIFICATES),
-            CertificateValidator.buildCertStoreFromCertificates(TRUSTED_CA_CERTIFICATES));
+            CertificateValidator.buildCertStoreFromCertificates(TRUSTED_CA_CERTIFICATES),
+            MAX_THIS_UPDATE_AGE,
+            MAX_NEXT_UPDATE_AGE);
     }
 
     public static DesignatedOcspServiceConfiguration getDesignatedOcspServiceConfiguration() throws CertificateException, IOException, OCSPCertificateException {
@@ -86,9 +92,11 @@ public class OcspServiceMaker {
     private static DesignatedOcspServiceConfiguration getDesignatedOcspServiceConfiguration(boolean doesSupportNonce, String ocspServiceAccessLocation) throws CertificateException, IOException, OCSPCertificateException {
         return new DesignatedOcspServiceConfiguration(
             URI.create(ocspServiceAccessLocation),
-            getTestSkOcspResponder2020(),
+            getTestSelfSignedOcspResponder(),
             TRUSTED_CA_CERTIFICATES,
-            doesSupportNonce);
+            doesSupportNonce,
+            MAX_THIS_UPDATE_AGE,
+            MAX_NEXT_UPDATE_AGE);
     }
 
 }
