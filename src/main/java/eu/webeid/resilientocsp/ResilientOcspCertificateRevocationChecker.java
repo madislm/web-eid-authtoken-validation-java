@@ -25,13 +25,14 @@ package eu.webeid.resilientocsp;
 import eu.webeid.ocsp.OcspCertificateRevocationChecker;
 import eu.webeid.ocsp.client.OcspClient;
 import eu.webeid.ocsp.exceptions.OCSPClientException;
+import eu.webeid.ocsp.exceptions.UserCertificateOCSPCheckFailedException;
+import eu.webeid.ocsp.exceptions.UserCertificateOCSPException;
 import eu.webeid.ocsp.exceptions.UserCertificateRevokedException;
-import eu.webeid.ocsp.protocol.OcspRequestBuilder;
+import eu.webeid.ocsp.service.FallbackOcspService;
 import eu.webeid.ocsp.service.OcspService;
 import eu.webeid.ocsp.service.OcspServiceProvider;
 import eu.webeid.resilientocsp.exceptions.ResilientUserCertificateOCSPCheckFailedException;
 import eu.webeid.resilientocsp.exceptions.ResilientUserCertificateRevokedException;
-import eu.webeid.ocsp.service.FallbackOcspService;
 import eu.webeid.security.exceptions.AuthTokenException;
 import eu.webeid.security.validator.ValidationInfo;
 import eu.webeid.security.validator.revocationcheck.RevocationInfo;
@@ -63,7 +64,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static eu.webeid.security.util.DateAndTime.requirePositiveDuration;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -78,17 +78,13 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
 
     private final CircuitBreakerRegistry circuitBreakerRegistry;
     private final RetryRegistry retryRegistry;
-    private final Duration fallbackMaxOcspResponseThisUpdateAge;
 
     public ResilientOcspCertificateRevocationChecker(OcspClient ocspClient,
                                                      OcspServiceProvider ocspServiceProvider,
                                                      CircuitBreakerConfig circuitBreakerConfig,
                                                      RetryConfig retryConfig,
-                                                     Duration allowedOcspResponseTimeSkew,
-                                                     Duration primaryMaxOcspResponseThisUpdateAge,
-                                                     Duration fallbackMaxOcspResponseThisUpdateAge) {
-        super(ocspClient, ocspServiceProvider, allowedOcspResponseTimeSkew, primaryMaxOcspResponseThisUpdateAge);
-        this.fallbackMaxOcspResponseThisUpdateAge = requirePositiveDuration(fallbackMaxOcspResponseThisUpdateAge, "fallbackMaxOcspResponseThisUpdateAge");
+                                                     Duration allowedOcspResponseTimeSkew) {
+        super(ocspClient, ocspServiceProvider, allowedOcspResponseTimeSkew);
         this.circuitBreakerRegistry = CircuitBreakerRegistry.custom()
             .withCircuitBreakerConfig(getCircuitBreakerConfig(circuitBreakerConfig))
             .build();
@@ -110,22 +106,29 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
     public List<RevocationInfo> validateCertificateNotRevoked(X509Certificate subjectCertificate,
                                                               X509Certificate issuerCertificate) throws AuthTokenException {
         OcspService primaryService = getOcspServiceProvider().getService(subjectCertificate, issuerCertificate);
+        CertificateID certificateId = getCertificateId(subjectCertificate, issuerCertificate);
+
         Optional<FallbackOcspService> firstFallbackServiceOpt = primaryService.getFallbackService();
         if (firstFallbackServiceOpt.isEmpty()) {
             // Without a configured fallback, use the primary service directly without retry or circuit breaker.
-            return List.of(request(primaryService, subjectCertificate, issuerCertificate, getMaxOcspResponseThisUpdateAge()));
+            return List.of(request(primaryService, subjectCertificate, issuerCertificate, certificateId));
         }
 
         CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker(primaryService.getAccessLocation().toASCIIString());
         List<RevocationInfo> revocationInfoList = new ArrayList<>();
+        // Requesting circuit breaker permission may change its state, for example from an expired OPEN
+        // state to HALF_OPEN when automatic transition is disabled (the default). To report the state
+        // that actually governs the request, the snapshot is captured inside the decorated call chain
+        // rather than here.
+        CircuitBreakerStatisticsSnapshot statisticsSnapshot = new CircuitBreakerStatisticsSnapshot(circuitBreaker);
         CheckedSupplier<RevocationInfo> fallbackSupplier = buildFallbackSupplier(firstFallbackServiceOpt.get(), subjectCertificate,
-            issuerCertificate, revocationInfoList);
+            issuerCertificate, certificateId, revocationInfoList);
         CheckedSupplier<RevocationInfo> decoratedSupplier = decorateWithResilience(primaryService, subjectCertificate,
-            issuerCertificate, revocationInfoList, fallbackSupplier, circuitBreaker);
+            issuerCertificate, certificateId, revocationInfoList, fallbackSupplier, circuitBreaker, statisticsSnapshot);
 
-        // Take a snapshot of circuit breaker statistics right before the first request.
-        CircuitBreakerStatistics circuitBreakerStatistics = createCircuitBreakerStatistics(circuitBreaker);
-        RevocationInfo revocationInfo = processResult(Try.of(decoratedSupplier::get), subjectCertificate, revocationInfoList, circuitBreakerStatistics);
+        Try<RevocationInfo> result = Try.of(decoratedSupplier::get);
+        RevocationInfo revocationInfo = processResult(result, subjectCertificate, revocationInfoList,
+            statisticsSnapshot.get());
         revocationInfoList.add(revocationInfo);
         return revocationInfoList;
     }
@@ -149,10 +152,11 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
     private CheckedSupplier<RevocationInfo> buildFallbackSupplier(FallbackOcspService firstFallbackService,
                                                                   X509Certificate subjectCertificate,
                                                                   X509Certificate issuerCertificate,
+                                                                  CertificateID certificateId,
                                                                   List<RevocationInfo> revocationInfoList) {
         CheckedSupplier<RevocationInfo> firstFallbackSupplier = () -> {
             try {
-                return request(firstFallbackService, subjectCertificate, issuerCertificate, fallbackMaxOcspResponseThisUpdateAge);
+                return request(firstFallbackService, subjectCertificate, issuerCertificate, certificateId);
             } catch (Exception e) {
                 createAndAddRevocationInfoToList(e, revocationInfoList);
                 throw e;
@@ -166,7 +170,7 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
         }
         CheckedSupplier<RevocationInfo> secondFallbackSupplier = () -> {
             try {
-                return request(secondFallbackService, subjectCertificate, issuerCertificate, fallbackMaxOcspResponseThisUpdateAge);
+                return request(secondFallbackService, subjectCertificate, issuerCertificate, certificateId);
             } catch (Exception e) {
                 createAndAddRevocationInfoToList(e, revocationInfoList);
                 throw e;
@@ -189,12 +193,17 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
     private CheckedSupplier<RevocationInfo> decorateWithResilience(OcspService primaryService,
                                                                    X509Certificate subjectCertificate,
                                                                    X509Certificate issuerCertificate,
+                                                                  CertificateID certificateId,
                                                                    List<RevocationInfo> revocationInfoList,
                                                                    CheckedSupplier<RevocationInfo> fallbackSupplier,
-                                                                   CircuitBreaker circuitBreaker) {
+                                                                   CircuitBreaker circuitBreaker,
+                                                                   CircuitBreakerStatisticsSnapshot statisticsSnapshot) {
         CheckedSupplier<RevocationInfo> primarySupplier = () -> {
+            // The circuit breaker has just permitted this call, so its current state is the one that
+            // governs the request.
+            statisticsSnapshot.capture();
             try {
-                return request(primaryService, subjectCertificate, issuerCertificate, getMaxOcspResponseThisUpdateAge());
+                return request(primaryService, subjectCertificate, issuerCertificate, certificateId);
             } catch (Exception e) {
                 createAndAddRevocationInfoToList(e, revocationInfoList);
                 throw e;
@@ -206,7 +215,12 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
             decorateCheckedSupplier.withRetry(retry);
         }
         decorateCheckedSupplier.withCircuitBreaker(circuitBreaker)
-            .withFallback(List.of(ResilientUserCertificateOCSPCheckFailedException.class, CallNotPermittedException.class), e -> fallbackSupplier.get());
+            .withFallback(List.of(ResilientUserCertificateOCSPCheckFailedException.class, CallNotPermittedException.class), e -> {
+                // No-op if the primary request ran; otherwise the circuit breaker rejected the call and
+                // this captures the rejecting state before the fallback request starts.
+                statisticsSnapshot.capture();
+                return fallbackSupplier.get();
+            });
 
         return decorateCheckedSupplier.decorate();
     }
@@ -256,25 +270,19 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
         ))));
     }
 
-    private RevocationInfo request(OcspService ocspService, X509Certificate subjectCertificate, X509Certificate issuerCertificate, Duration maxOcspResponseThisUpdateAge) throws ResilientUserCertificateOCSPCheckFailedException, ResilientUserCertificateRevokedException {
-        URI ocspResponderUri = null;
+    private RevocationInfo request(OcspService ocspService, X509Certificate subjectCertificate, X509Certificate issuerCertificate, CertificateID certificateId) throws UserCertificateOCSPCheckFailedException, ResilientUserCertificateRevokedException, UserCertificateOCSPException {
+        final URI ocspResponderUri = ocspService.getAccessLocation();
+        final OCSPReq request = getOcspRequest(certificateId, ocspService);
+
+        if (!ocspService.doesSupportNonce()) {
+            LOG.debug("Disabling OCSP nonce extension");
+        }
+
+
         OCSPResp response = null;
-        OCSPReq request = null;
         Duration requestDuration = null;
         Instant responseTime = null;
         try {
-            ocspResponderUri = requireNonNull(ocspService.getAccessLocation(), "ocspResponderUri");
-
-            final CertificateID certificateId = getCertificateId(subjectCertificate, issuerCertificate);
-            request = new OcspRequestBuilder()
-                .withCertificateId(certificateId)
-                .enableOcspNonce(ocspService.doesSupportNonce())
-                .build();
-
-            if (!ocspService.doesSupportNonce()) {
-                LOG.debug("Disabling OCSP nonce extension");
-            }
-
             LOG.debug("Sending OCSP request");
             Instant requestTime = Instant.now();
             try {
@@ -301,7 +309,7 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
             }
             LOG.debug("OCSP response received successfully");
 
-            verifyOcspResponse(basicResponse, ocspService, certificateId, issuerCertificate, maxOcspResponseThisUpdateAge);
+            verifyOcspResponse(basicResponse, ocspService, certificateId, issuerCertificate);
             if (ocspService.doesSupportNonce()) {
                 checkNonce(request, basicResponse, ocspResponderUri);
             }
@@ -358,10 +366,14 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
 
     private static CircuitBreakerConfig getCircuitBreakerConfig(CircuitBreakerConfig circuitBreakerConfig) {
         return CircuitBreakerConfig.from(circuitBreakerConfig)
-            // Users must not be able to modify these three values.
-            .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
-            .ignoreExceptions(ResilientUserCertificateRevokedException.class)
-            .automaticTransitionFromOpenToHalfOpenEnabled(true)
+            // Users must not be able to modify this value.
+            // Only ResilientUserCertificateOCSPCheckFailedException counts as a failure.
+            // ResilientUserCertificateRevokedException is counted as a SUCCESS because it represents
+            // a definitive OCSP answer (the service is healthy), not a transient failure.
+            // Clear any recordExceptions list of the given configuration first, because it is combined
+            // with the predicate below by OR and would otherwise widen what counts as a failure.
+            .recordExceptions()
+            .recordException(throwable -> throwable instanceof ResilientUserCertificateOCSPCheckFailedException)
             .build();
     }
 
@@ -380,6 +392,28 @@ public class ResilientOcspCertificateRevocationChecker extends OcspCertificateRe
         return revocationInfo
             .withAdditionalOcspResponseAttribute(RevocationInfo.KEY_OCSP_RESPONSE, e.getResponseBody())
             .withAdditionalOcspResponseAttribute(RevocationInfo.KEY_HTTP_STATUS_CODE, e.getStatusCode());
+    }
+
+    private final class CircuitBreakerStatisticsSnapshot {
+
+        private final CircuitBreaker circuitBreaker;
+        private CircuitBreakerStatistics statistics;
+
+        private CircuitBreakerStatisticsSnapshot(CircuitBreaker circuitBreaker) {
+            this.circuitBreaker = circuitBreaker;
+        }
+
+        private void capture() {
+            if (statistics == null) {
+                statistics = createCircuitBreakerStatistics(circuitBreaker);
+            }
+        }
+
+        private CircuitBreakerStatistics get() {
+            // Safety net: if neither the primary supplier nor the fallback ran, capture the statistics now.
+            capture();
+            return statistics;
+        }
     }
 
     public record CircuitBreakerStatistics(

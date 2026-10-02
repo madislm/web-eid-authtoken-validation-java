@@ -35,6 +35,7 @@ import java.security.cert.CertStore;
 import java.security.cert.CertificateException;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.Date;
 import java.util.Set;
 
@@ -50,6 +51,8 @@ public class FallbackOcspService implements OcspService {
     private final FallbackOcspService nextFallback;
     private final Set<TrustAnchor> trustedCACertificateAnchors;
     private final CertStore trustedCACertificateCertStore;
+    private final Duration maxThisUpdateAge;
+    private final Duration maxNextUpdateAge;
 
     public FallbackOcspService(FallbackOcspServiceConfiguration configuration) {
         this.url = configuration.getAccessLocation();
@@ -60,6 +63,8 @@ public class FallbackOcspService implements OcspService {
             : null;
         this.trustedCACertificateAnchors = configuration.getTrustedCACertificateAnchors();
         this.trustedCACertificateCertStore = configuration.getTrustedCACertificateCertStore();
+        this.maxThisUpdateAge = configuration.getMaxThisUpdateAge();
+        this.maxNextUpdateAge = configuration.getMaxNextUpdateAge();
     }
 
     @Override
@@ -70,6 +75,16 @@ public class FallbackOcspService implements OcspService {
     @Override
     public URI getAccessLocation() {
         return url;
+    }
+
+    @Override
+    public Duration getMaxThisUpdateAge() {
+        return maxThisUpdateAge;
+    }
+
+    @Override
+    public Duration getMaxNextUpdateAge() {
+        return maxNextUpdateAge;
     }
 
     @Override
@@ -88,6 +103,9 @@ public class FallbackOcspService implements OcspService {
     }
 
     private void validatePinnedResponderCertificate(X509Certificate responderCertificate) throws OCSPCertificateException {
+        // Certificate extensions (Basic Constraints, Key Usage, Extended Key Usage) are validated at
+        // configuration time in FallbackOcspServiceConfiguration. Since equals() compares the full DER
+        // encoding, a matching certificate is guaranteed to have the same validated extensions.
         // Certificate pinning is implemented simply by comparing the certificates or their public keys,
         // see https://owasp.org/www-community/controls/Certificate_and_Public_Key_Pinning.
         if (!trustedResponderCertificate.equals(responderCertificate)) {
@@ -97,7 +115,10 @@ public class FallbackOcspService implements OcspService {
     }
 
     private void validateResponderCertificateAgainstTrustedCa(X509Certificate responderCertificate, Date now) throws AuthTokenException {
-        OcspResponseValidator.validateHasSigningExtension(responderCertificate);
+        OcspResponseValidator.validateBasicConstraintsNotCA(responderCertificate);
+        OcspResponseValidator.validateKeyUsageDigitalSignature(responderCertificate);
+        OcspResponseValidator.validateKeyUsageNotCertificateSigning(responderCertificate);
+        OcspResponseValidator.validateExtendedKeyUsageOcspSigning(responderCertificate);
         CertificateValidator.validateCertificateTrustAndRevocation(
             responderCertificate,
             trustedCACertificateAnchors,
